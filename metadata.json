@@ -1,0 +1,6 @@
+{
+  "name": "Menuestro",
+  "description": "Digitalize restaurant menus with real-time item availability managed by owners and fast 1-click Google business review links.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

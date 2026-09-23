@@ -1,0 +1,649 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile linking an authenticated user to their role and business",
+      "type": "object",
+      "properties": {
+        "businessId": {
+          "type": "string",
+          "description": "The ID of the primary business associated with the user"
+        },
+        "name": {
+          "type": "string",
+          "description": "The user's display name"
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's email address"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["super_admin", "owner", "manager", "staff"],
+          "description": "The user's access role"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of user profile creation"
+        }
+      },
+      "required": ["email", "createdAt", "role"]
+    },
+    "AdminRole": {
+      "title": "AdminRole",
+      "description": "Authoritative platform administrative registry document",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["super_admin", "content_admin", "support_admin"]
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "createdBy": {
+          "type": "string"
+        }
+      },
+      "required": ["userId", "email", "role", "active"]
+    },
+    "SlugMapping": {
+      "title": "SlugMapping",
+      "description": "Global unique URL slug mapping to businessId for O(1) public resolution",
+      "type": "object",
+      "properties": {
+        "businessId": {
+          "type": "string",
+          "description": "Target business document ID"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of creator or owner"
+        },
+        "slug": {
+          "type": "string",
+          "description": "Normalized lowercase slug",
+          "maxLength": 80
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp"
+        }
+      },
+      "required": ["businessId", "ownerId", "slug", "createdAt"]
+    },
+    "ReviewPhrase": {
+      "title": "ReviewPhrase",
+      "description": "Reusable review phrase for deterministic review generation",
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "The phrase text content",
+          "maxLength": 200
+        },
+        "category": {
+          "type": "string",
+          "enum": ["overall", "food", "service", "ambience", "value", "general"],
+          "description": "Review aspect category"
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Whether the phrase is active and shown to guests"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "active", "disabled"]
+        },
+        "sortOrder": {
+          "type": "number",
+          "description": "Ordering priority"
+        },
+        "version": {
+          "type": "number"
+        },
+        "businessId": {
+          "type": "string",
+          "description": "Optional business ID if custom restaurant phrase"
+        },
+        "sentiment": {
+          "type": "string",
+          "enum": ["positive", "neutral", "constructive"]
+        },
+        "createdBy": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Update timestamp"
+        }
+      },
+      "required": ["text", "category", "active", "sortOrder"]
+    },
+    "ReviewTemplate": {
+      "title": "ReviewTemplate",
+      "description": "Centrally managed review formulation template with controlled placeholders",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "templateText": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "placeholders": {
+          "type": "array"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "active", "disabled"]
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "sortOrder": {
+          "type": "number"
+        },
+        "version": {
+          "type": "number"
+        },
+        "createdBy": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        }
+      },
+      "required": ["title", "templateText", "active", "sortOrder"]
+    },
+    "FeedbackQuestion": {
+      "title": "FeedbackQuestion",
+      "description": "Centrally managed customer feedback prompt questions",
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "category": {
+          "type": "string",
+          "enum": ["overall", "food", "service", "ambience", "value", "general"]
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "sortOrder": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        }
+      },
+      "required": ["text", "category", "active", "sortOrder"]
+    },
+    "CTAMessage": {
+      "title": "CTAMessage",
+      "description": "Centrally managed call-to-action banner and button copy",
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "placement": {
+          "type": "string",
+          "enum": ["menu_bottom", "review_page", "banner", "modal"]
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "version": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        }
+      },
+      "required": ["text", "placement", "active"]
+    },
+    "AdminActivityLog": {
+      "title": "AdminActivityLog",
+      "description": "Audit trail log tracking administrative actions across the platform",
+      "type": "object",
+      "properties": {
+        "adminUserId": {
+          "type": "string"
+        },
+        "adminEmail": {
+          "type": "string"
+        },
+        "adminName": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "entityType": {
+          "type": "string",
+          "enum": ["restaurant", "menu_item", "category", "review_phrase", "review_template", "feedback_question", "cta_message", "qr_code", "settings"]
+        },
+        "entityId": {
+          "type": "string"
+        },
+        "businessId": {
+          "type": "string"
+        },
+        "businessName": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        },
+        "metadata": {
+          "type": "object"
+        }
+      },
+      "required": ["adminUserId", "action", "entityType", "entityId", "timestamp"]
+    },
+    "Business": {
+      "title": "Business",
+      "description": "Public restaurant profile and customer configuration",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID or Super Admin owner"
+        },
+        "name": {
+          "type": "string",
+          "description": "Business or restaurant name",
+          "maxLength": 100
+        },
+        "slug": {
+          "type": "string",
+          "description": "URL-friendly unique slug for customer routes",
+          "maxLength": 80
+        },
+        "description": {
+          "type": "string",
+          "description": "Short bio or tagline for the restaurant",
+          "maxLength": 500
+        },
+        "tagline": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "suspended", "archived"]
+        },
+        "country": {
+          "type": "string"
+        },
+        "countryCode": {
+          "type": "string"
+        },
+        "currencyCode": {
+          "type": "string"
+        },
+        "currencySymbol": {
+          "type": "string"
+        },
+        "currency": {
+          "type": "string"
+        },
+        "logoUrl": {
+          "type": "string",
+          "description": "URL of business logo image"
+        },
+        "coverImageUrl": {
+          "type": "string",
+          "description": "URL of banner/cover image"
+        },
+        "phone": {
+          "type": "string",
+          "description": "Contact phone number"
+        },
+        "address": {
+          "type": "string",
+          "description": "Physical restaurant address"
+        },
+        "googleReviewUrl": {
+          "type": "string",
+          "description": "Direct Google Review link"
+        },
+        "primaryColor": {
+          "type": "string",
+          "description": "Primary brand color hex"
+        },
+        "googleRating": {
+          "type": "number"
+        },
+        "ratingCount": {
+          "type": "number"
+        },
+        "reviewAssistantSettings": {
+          "type": "object",
+          "description": "Configuration for the Rule-Based Review Assistant"
+        },
+        "ownerEmail": {
+          "type": "string",
+          "description": "The email address of the restaurant owner or manager for direct dashboard login access"
+        },
+        "managerEmail": {
+          "type": "string",
+          "description": "Additional manager email address"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of creation"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of last update"
+        }
+      },
+      "required": ["ownerId", "name", "slug"]
+    },
+    "BusinessStats": {
+      "title": "BusinessStats",
+      "description": "Pre-aggregated metric summaries for O(1) dashboard reads",
+      "type": "object",
+      "properties": {
+        "totalScans": {
+          "type": "number",
+          "description": "All-time accumulated QR & menu scans"
+        },
+        "totalReviews": {
+          "type": "number",
+          "description": "All-time accumulated Google Review link clicks"
+        },
+        "todayScans": {
+          "type": "number",
+          "description": "Today's scans counter"
+        },
+        "todayReviews": {
+          "type": "number",
+          "description": "Today's review clicks counter"
+        },
+        "lastDate": {
+          "type": "string",
+          "description": "Current date key YYYY-MM-DD"
+        },
+        "dailyScans": {
+          "type": "object",
+          "description": "Map of date strings to daily scan count"
+        },
+        "dailyReviews": {
+          "type": "object",
+          "description": "Map of date strings to daily review count"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last update timestamp"
+        }
+      },
+      "required": ["totalScans", "totalReviews", "lastDate"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Menu category grouping items",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Category name",
+          "maxLength": 60
+        },
+        "description": {
+          "type": "string",
+          "description": "Category description",
+          "maxLength": 200
+        },
+        "sortOrder": {
+          "type": "number",
+          "description": "Display order index"
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Whether category is visible on public menu"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last update timestamp"
+        }
+      },
+      "required": ["name", "sortOrder", "isActive"]
+    },
+    "MenuItem": {
+      "title": "MenuItem",
+      "description": "Dish, beverage, or food item on the menu",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Item name",
+          "maxLength": 100
+        },
+        "description": {
+          "type": "string",
+          "description": "Item description and ingredients",
+          "maxLength": 500
+        },
+        "price": {
+          "type": "number",
+          "description": "Item price in default currency"
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "Image URL of the item"
+        },
+        "isAvailable": {
+          "type": "boolean",
+          "description": "Whether item is currently in stock/available"
+        },
+        "sortOrder": {
+          "type": "number",
+          "description": "Sorting order within category"
+        },
+        "tags": {
+          "type": "array",
+          "description": "Tags like Bestseller, Vegetarian, Spicy, Chef's Special"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last update timestamp"
+        }
+      },
+      "required": ["name", "price", "isAvailable"]
+    },
+    "QRCode": {
+      "title": "QRCode",
+      "description": "Saved QR code configuration for table or marketing display",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["menu", "review", "combined"],
+          "description": "Destination type of QR"
+        },
+        "label": {
+          "type": "string",
+          "description": "Label like Table 1, Front Counter, or Patio",
+          "maxLength": 60
+        },
+        "targetUrl": {
+          "type": "string",
+          "description": "Resolved target URL of QR code"
+        },
+        "scans": {
+          "type": "number",
+          "description": "Count of times this QR was scanned"
+        },
+        "color": {
+          "type": "string"
+        },
+        "tableNumber": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp"
+        }
+      },
+      "required": ["type", "label", "targetUrl"]
+    },
+    "AnalyticsEvent": {
+      "title": "AnalyticsEvent",
+      "description": "Customer action event for real-time analytics",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "menu_scan",
+            "menu_view",
+            "item_view",
+            "review_page_visit",
+            "review_draft_created",
+            "google_review_click",
+            "private_feedback_submitted",
+            "review_assistant_opened",
+            "review_feedback_started",
+            "review_draft_generated",
+            "review_draft_edited",
+            "review_copy_clicked",
+            "google_review_clicked"
+          ],
+          "description": "Event type identifier"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Event timestamp"
+        },
+        "qrId": {
+          "type": "string",
+          "description": "QR Code ID if arrived via QR"
+        },
+        "deviceType": {
+          "type": "string",
+          "description": "Mobile, Tablet, or Desktop"
+        },
+        "userAgent": {
+          "type": "string",
+          "description": "Browser user agent snippet"
+        },
+        "itemId": {
+          "type": "string",
+          "description": "Item ID if item_view"
+        },
+        "sessionId": {
+          "type": "string",
+          "description": "Unique session ID for conversion tracking"
+        },
+        "metadata": {
+          "type": "object"
+        }
+      },
+      "required": ["type", "timestamp", "sessionId"]
+    }
+  },
+  "firestore": {
+    "/admins/{userId}": {
+      "schema": "AdminRole",
+      "description": "Super Admin authorization registry"
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile linking authenticated user to their business and role"
+    },
+    "/slugs/{slug}": {
+      "schema": "SlugMapping",
+      "description": "Global unique slug registry for O(1) public lookups"
+    },
+    "/reviewLibrary/{phraseId}": {
+      "schema": "ReviewPhrase",
+      "description": "Global Super Admin review phrase content library"
+    },
+    "/reviewTemplates/{templateId}": {
+      "schema": "ReviewTemplate",
+      "description": "Global Super Admin review formulation templates"
+    },
+    "/feedbackQuestions/{questionId}": {
+      "schema": "FeedbackQuestion",
+      "description": "Global Super Admin feedback questions"
+    },
+    "/ctaMessages/{ctaId}": {
+      "schema": "CTAMessage",
+      "description": "Global Super Admin call-to-action messages"
+    },
+    "/adminActivityLogs/{logId}": {
+      "schema": "AdminActivityLog",
+      "description": "Global Super Admin platform activity audit logs"
+    },
+    "/businesses/{businessId}": {
+      "schema": "Business",
+      "description": "Restaurant public profile and configuration"
+    },
+    "/businesses/{businessId}/reviewPhrases/{phraseId}": {
+      "schema": "ReviewPhrase",
+      "description": "Restaurant-specific custom review phrases"
+    },
+    "/businesses/{businessId}/stats/{statId}": {
+      "schema": "BusinessStats",
+      "description": "Pre-aggregated metric summaries for O(1) dashboard reads"
+    },
+    "/businesses/{businessId}/categories/{categoryId}": {
+      "schema": "Category",
+      "description": "Menu category organizing dishes and beverages"
+    },
+    "/businesses/{businessId}/categories/{categoryId}/items/{itemId}": {
+      "schema": "MenuItem",
+      "description": "Menu item dishes with price, availability, and tags"
+    },
+    "/businesses/{businessId}/qrCodes/{qrId}": {
+      "schema": "QRCode",
+      "description": "Configured QR codes for menu, reviews, and tables"
+    },
+    "/businesses/{businessId}/analytics/{eventId}": {
+      "schema": "AnalyticsEvent",
+      "description": "Real-time tracking events for scans, views, and review interactions"
+    }
+  }
+}

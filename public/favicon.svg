@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="128" fill="#0B1220"/>
+  <defs>
+    <linearGradient id="leafGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10B981"/>
+      <stop offset="50%" stop-color="#078A55"/>
+      <stop offset="100%" stop-color="#046C42"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="16" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+  <path d="M256 96 C 340 96, 416 160, 416 268 C 416 350, 340 400, 256 416 C 256 416, 266 360, 256 310 C 242 240, 180 180, 120 160 C 140 120, 190 96, 256 96 Z" fill="url(#leafGrad)" filter="url(#glow)"/>
+  <path d="M256 120 C 230 180, 220 280, 256 400" stroke="#A7F3D0" stroke-width="12" stroke-linecap="round" fill="none" opacity="0.8"/>
+  <path d="M246 220 C 280 200, 330 200, 360 210" stroke="#A7F3D0" stroke-width="8" stroke-linecap="round" fill="none" opacity="0.7"/>
+  <path d="M236 280 C 270 270, 320 280, 350 300" stroke="#A7F3D0" stroke-width="8" stroke-linecap="round" fill="none" opacity="0.7"/>
+</svg>

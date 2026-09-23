@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --color-primary: #078A55;
+    --color-primary-hover: #067548;
+    --color-primary-light: #EAF8F1;
+    --color-primary-extra-light: #F3FBF7;
+    --color-sidebar: #0B1220;
+    --color-sidebar-surface: #111B2B;
+    --color-sidebar-active: #1C293D;
+    --color-page-bg: #F7F9FC;
+    --color-surface: #FFFFFF;
+    --color-text-primary: #101828;
+    --color-text-secondary: #667085;
+    --color-text-muted: #98A2B3;
+    --color-border: #E4E7EC;
+    --color-border-light: #EEF1F5;
+    --color-warning: #F59E0B;
+    --color-warning-bg: #FFF7DB;
+    --color-danger: #DC2626;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: #101828;
+    background-color: #F7F9FC;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Smooth scrolling and tap highlight reset */
+html {
+  scroll-behavior: smooth;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Globally hide all scrollbars while preserving scrolling functionality */
+* {
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE and Edge */
+}
+
+*::-webkit-scrollbar {
+  display: none !important; /* Chrome, Safari, Opera */
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+
+.no-scrollbar {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+}

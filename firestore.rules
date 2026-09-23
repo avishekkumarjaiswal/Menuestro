@@ -1,0 +1,239 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global helper functions
+    function isSignedIn() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    // Authoritative Super Admin Check:
+    // 1. Initial bootstrap platform admin emails
+    // 2. Authoritative verified admin record in /admins/{uid}
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email in ['managebox02@gmail.com', 'try.avishekumar@gmail.com'] ||
+        (exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'super_admin' &&
+         get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.active == true)
+      );
+    }
+
+    // Content Admin Check (Future role support)
+    function isContentAdmin() {
+      return isSignedIn() && (
+        isSuperAdmin() ||
+        (exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role in ['super_admin', 'content_admin'] &&
+         get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.active == true)
+      );
+    }
+
+    // Support Admin Check (Future role support)
+    function isSupportAdmin() {
+      return isSignedIn() && (
+        isSuperAdmin() ||
+        (exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role in ['super_admin', 'support_admin'] &&
+         get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.active == true)
+      );
+    }
+
+    // Business Owner Verification:
+    // - Super Admin
+    // - ownerId matching UID
+    // - ownerEmail matching authenticated user email
+    function isBusinessOwner(businessId) {
+      return isSignedIn() && (
+        isSuperAdmin() ||
+        (exists(/databases/$(database)/documents/businesses/$(businessId)) &&
+         (get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid ||
+          (request.auth.token.email != null && get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerEmail == request.auth.token.email)))
+      );
+    }
+
+    // Business Member Verification:
+    function isBusinessMember(businessId) {
+      return isSignedIn() && (
+        isSuperAdmin() ||
+        isBusinessOwner(businessId) ||
+        exists(/databases/$(database)/documents/businesses/$(businessId)/members/$(request.auth.uid))
+      );
+    }
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Connection test document
+    match /test/{docId} {
+      allow read: if true;
+    }
+
+    // 1. Authoritative Admin Registry (/admins/{uid})
+    // Controlled exclusively by authorized Super Admins; normal users cannot read others or write.
+    match /admins/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin());
+      allow write: if isSuperAdmin();
+    }
+
+    // 2. User profiles
+    // Users cannot assign platform admin roles to themselves.
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin());
+      allow create: if isSignedIn() && (
+        (request.auth.uid == userId && (!('role' in request.resource.data) || !request.resource.data.role.matches('^(super_admin|content_admin|support_admin)$'))) ||
+        isSuperAdmin()
+      );
+      allow update: if isSignedIn() && (
+        (request.auth.uid == userId && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']) ||
+          request.resource.data.role in ['owner', 'manager', 'staff']
+        )) ||
+        isSuperAdmin()
+      );
+      allow delete: if isSuperAdmin();
+    }
+
+    // 3. Global Unique Slug Registry (O(1) resolution across 10,000+ tenants)
+    match /slugs/{slug} {
+      allow read: if true;
+      allow create: if isSignedIn() && (
+        isSuperAdmin() ||
+        (request.resource.data.ownerId == request.auth.uid) ||
+        (request.resource.data.businessId != null && isBusinessMember(request.resource.data.businessId))
+      );
+      allow update, delete: if isSignedIn() && (
+        isSuperAdmin() ||
+        (resource.data.ownerId == request.auth.uid) ||
+        (resource.data.businessId != null && isBusinessMember(resource.data.businessId))
+      );
+    }
+
+    // 4. Global Platform Content (Controlled ONLY by Super Admin & Content Admin)
+    match /reviewLibrary/{phraseId} {
+      allow read: if true;
+      allow write: if isSuperAdmin() || isContentAdmin();
+    }
+
+    match /reviewTemplates/{templateId} {
+      allow read: if true;
+      allow write: if isSuperAdmin() || isContentAdmin();
+    }
+
+    match /feedbackQuestions/{questionId} {
+      allow read: if true;
+      allow write: if isSuperAdmin() || isContentAdmin();
+    }
+
+    match /ctaMessages/{ctaId} {
+      allow read: if true;
+      allow write: if isSuperAdmin() || isContentAdmin();
+    }
+
+    // 5. Global Admin Activity Logs (Immutable Audit Trail)
+    match /adminActivityLogs/{logId} {
+      allow read: if isSuperAdmin();
+      allow create: if isSignedIn() && (
+        isSuperAdmin() ||
+        (!('businessId' in request.resource.data) || isBusinessMember(request.resource.data.businessId))
+      );
+      allow update, delete: if false;
+    }
+
+    // 6. Business Root Documents
+    match /businesses/{businessId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (
+        isSuperAdmin() ||
+        resource.data.ownerId == request.auth.uid ||
+        isBusinessMember(businessId)
+      );
+      allow delete: if isSignedIn() && (isSuperAdmin() || resource.data.ownerId == request.auth.uid);
+
+      // 6.1 Business Membership & Staff RBAC
+      match /members/{memberUserId} {
+        allow read: if isSignedIn() && (
+          request.auth.uid == memberUserId ||
+          isBusinessMember(businessId)
+        );
+        allow create: if isSignedIn() && (isSuperAdmin() || isBusinessOwner(businessId) || request.auth.uid == memberUserId);
+        allow update, delete: if isSignedIn() && (isSuperAdmin() || isBusinessOwner(businessId) || request.auth.uid == memberUserId);
+      }
+
+      // 6.2 Private business settings (billing, internal notes, keys)
+      match /private/{settingDoc} {
+        allow read, write: if isSignedIn() && isBusinessOwner(businessId);
+      }
+
+      // 6.3 Aggregated Stats Summary (O(1) dashboard reads)
+      match /stats/{statId} {
+        allow read: if true;
+        allow create, update: if true;
+        allow delete: if isSignedIn() && (isSuperAdmin() || isBusinessOwner(businessId));
+      }
+
+      // 6.4 Categories
+      match /categories/{categoryId} {
+        allow read: if true;
+        allow create: if isSignedIn() && (isSuperAdmin() || isBusinessMember(businessId));
+        allow update, delete: if isSignedIn() && (isSuperAdmin() || isBusinessMember(businessId));
+
+        // 6.5 Menu Items within Categories
+        match /items/{itemId} {
+          allow read: if true;
+          allow create: if isSignedIn() && (isSuperAdmin() || isBusinessMember(businessId));
+          allow update, delete: if isSignedIn() && (isSuperAdmin() || isBusinessMember(businessId));
+        }
+      }
+
+      // 6.6 QR Codes
+      match /qrCodes/{qrId} {
+        allow read: if true;
+        allow create: if isSignedIn() && (isSuperAdmin() || isBusinessMember(businessId));
+        allow update, delete: if isSignedIn() && (isSuperAdmin() || isBusinessMember(businessId));
+      }
+
+      // 6.7 Restaurant Custom Review Phrases (Controlled ONLY by Super Admin / Content Admin)
+      // Note: Restaurants cannot modify custom review phrases; Super Admin manages them for personalized tone.
+      match /reviewPhrases/{phraseId} {
+        allow read: if true;
+        allow write: if isSuperAdmin() || isContentAdmin();
+      }
+
+      // 6.8 Private Customer Feedback
+      match /privateFeedback/{feedbackId} {
+        allow read: if isSignedIn() && (isSuperAdmin() || isBusinessMember(businessId));
+        allow create: if request.resource.data.rating is number &&
+          request.resource.data.rating >= 1 &&
+          request.resource.data.rating <= 5;
+        allow update, delete: if isSignedIn() && (isSuperAdmin() || isBusinessMember(businessId));
+      }
+
+      // 6.9 Real-time Analytics Events
+      match /analytics/{eventId} {
+        allow read: if isSignedIn() && (isSuperAdmin() || isBusinessMember(businessId));
+        allow create: if request.resource.data.type is string &&
+          request.resource.data.timestamp is string &&
+          request.resource.data.type in [
+            'menu_scan',
+            'menu_view',
+            'item_view',
+            'review_page_visit',
+            'review_draft_created',
+            'google_review_click',
+            'private_feedback_submitted',
+            'review_assistant_opened',
+            'review_feedback_started',
+            'review_draft_generated',
+            'review_draft_edited',
+            'review_copy_clicked',
+            'google_review_clicked'
+          ];
+        allow update, delete: if isSuperAdmin();
+      }
+    }
+  }
+}
