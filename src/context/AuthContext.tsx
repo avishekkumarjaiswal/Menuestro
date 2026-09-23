@@ -164,20 +164,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } catch {}
 
-      // 5. Fallback: Auto-connect to existing restaurant (e.g. Spezia Bistro)
-      try {
-        const allBizs = await getAllBusinesses();
-        if (allBizs && allBizs.length > 0) {
-          const defaultBiz = allBizs.find((b: Business) => b.name?.toLowerCase().includes('spezia')) || allBizs[0];
-          if (defaultBiz) {
-            userProf.businessId = defaultBiz.id;
-            updateUserProfile(currentUser.uid, { businessId: defaultBiz.id }).catch(() => {});
-            setBusiness(defaultBiz);
-            return;
-          }
-        }
-      } catch {}
-
+      // 5. If no business is associated, set business to null (user will be prompted to create shop)
       setBusiness(null);
     } catch (err) {
       console.error('Error loading user/business data:', err);

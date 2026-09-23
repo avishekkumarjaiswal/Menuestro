@@ -125,12 +125,12 @@ function MainRouter() {
     return <AuthPage />;
   }
 
-  // If user explicitly navigated to /onboarding, show wizard
-  if (currentPath === '/onboarding' || hash === '#/onboarding') {
+  // Authenticated user with no restaurant shop yet -> Prompt to create shop via OnboardingWizard
+  if (!business || currentPath === '/onboarding' || hash === '#/onboarding') {
     return <OnboardingWizard />;
   }
 
-  // Authenticated user -> Direct to Home Dashboard page
+  // Authenticated user with business -> Direct to Home Dashboard page
   return <DashboardLayout />;
 }
 
