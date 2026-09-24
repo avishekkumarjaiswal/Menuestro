@@ -379,7 +379,7 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
             imageUrl: item.imageUrl || '',
             isAvailable: item.isAvailable,
             sortOrder: i + 1,
-            tags: item.tags,
+            tags: item.tags as any,
           },
           undefined,
           adminUser

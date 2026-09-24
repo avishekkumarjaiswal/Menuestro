@@ -219,11 +219,12 @@ function CreationForm({ onBack, onCreated }: CreationFormProps) {
       const newBizId = await createBusiness({
         ownerId: user.uid,
         ownerEmail: cleanEmail,
+        managerEmail: form.restaurantEmail.trim().toLowerCase() || cleanEmail,
         name: form.restaurantName.trim(),
         slug: cleanSlug,
         address: form.address.trim(),
         phone: form.phone.trim(),
-        restaurantEmail: form.restaurantEmail.trim().toLowerCase() || cleanEmail,
+        description: '',
         googleReviewUrl: form.googleReviewUrl.trim(),
         logoUrl: finalLogoUrl,
         coverImageUrl: finalCoverUrl,
