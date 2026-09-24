@@ -21,7 +21,8 @@ import {
   ChevronDown,
   Mail,
   UploadCloud,
-  FileText
+  FileText,
+  AlertCircle
 } from 'lucide-react';
 import { MenuCsvImportModal } from '../common/MenuCsvImportModal';
 import {
@@ -342,6 +343,54 @@ export const RestaurantDetailView: React.FC<RestaurantDetailViewProps> = ({
     }
   };
 
+  const [isCleaningDuplicates, setIsCleaningDuplicates] = useState(false);
+
+  // Detect duplicate dishes in the current category
+  const duplicateCategoryItems = useMemo(() => {
+    const seen = new Map<string, MenuItem[]>();
+    menuItems.forEach((item) => {
+      const key = `${item.categoryId}___${item.name.toLowerCase().trim()}`;
+      const list = seen.get(key) || [];
+      list.push(item);
+      seen.set(key, list);
+    });
+
+    const duplicatesToDelete: MenuItem[] = [];
+    seen.forEach((list) => {
+      if (list.length > 1) {
+        // Keep the first, mark remaining as duplicates
+        duplicatesToDelete.push(...list.slice(1));
+      }
+    });
+
+    return duplicatesToDelete;
+  }, [menuItems]);
+
+  const handleCleanDuplicates = async () => {
+    if (duplicateCategoryItems.length === 0 || !businessId) return;
+    setIsCleaningDuplicates(true);
+    try {
+      const adminInfo = {
+        id: user?.uid || 'super_admin',
+        email: user?.email || 'admin@menuestro.com',
+        name: profile?.name || 'Administrator',
+      };
+      for (const dup of duplicateCategoryItems) {
+        await deleteMenuItem(businessId, dup.categoryId, dup.id, adminInfo);
+      }
+      setMenuItems((prev) => {
+        const deletedIds = new Set(duplicateCategoryItems.map((d) => d.id));
+        return prev.filter((i) => !deletedIds.has(i.id));
+      });
+      addToast(`Successfully removed ${duplicateCategoryItems.length} duplicate dish${duplicateCategoryItems.length > 1 ? 'es' : ''}`, 'success');
+    } catch (err) {
+      console.error(err);
+      addToast('Failed to clean duplicates', 'error');
+    } finally {
+      setIsCleaningDuplicates(false);
+    }
+  };
+
   const handleCsvImportComplete = () => {
     addToast('Menu items and categories imported successfully!', 'success');
     if (businessId) {
@@ -485,6 +534,16 @@ export const RestaurantDetailView: React.FC<RestaurantDetailViewProps> = ({
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setCsvImportModalOpen(true)}
+            className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-[#078A55] border border-emerald-200 font-semibold text-xs rounded-lg shadow-xs flex items-center gap-1.5 transition cursor-pointer"
+            title="Import menu dishes from CSV"
+          >
+            <UploadCloud className="w-4 h-4" />
+            <span>Import CSV</span>
+          </button>
+
           <button
             onClick={() => {
               setPreviewModalOpen(true);
@@ -853,6 +912,31 @@ export const RestaurantDetailView: React.FC<RestaurantDetailViewProps> = ({
               </button>
             </div>
           </div>
+
+          {/* Duplicate Items Alert & Cleanup */}
+          {duplicateCategoryItems.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-start sm:items-center gap-2.5">
+                <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5 sm:mt-0" />
+                <div>
+                  <p className="font-semibold text-amber-900">
+                    Duplicate Dishes Detected ({duplicateCategoryItems.length} duplicate entries)
+                  </p>
+                  <p className="text-amber-700 text-[11px] mt-0.5">
+                    Found multiple dishes with identical names in this category (e.g. &quot;{duplicateCategoryItems[0]?.name}&quot;). Click clean to keep only 1 of each dish.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleCleanDuplicates}
+                disabled={isCleaningDuplicates}
+                className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-semibold rounded-lg shadow-xs transition cursor-pointer flex-shrink-0 text-center"
+              >
+                {isCleaningDuplicates ? 'Cleaning...' : 'Remove Duplicates (Keep 1)'}
+              </button>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             {/* Categories Sidebar */}
