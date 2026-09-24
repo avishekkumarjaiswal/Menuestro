@@ -28,8 +28,9 @@ export const DashboardLayout: React.FC = () => {
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const mainContentRef = useRef<HTMLElement>(null);
 
-  const restaurantName = business?.name || 'The Artisan Bistro';
-  const restaurantSlug = business?.slug || 'the-artisan-bistro';
+  const restaurantName = business?.name || '';
+  const restaurantSlug = business?.slug || '';
+
 
   const navItems: { id: NavTab; label: string; mobileLabel: string; icon: React.FC<{ className?: string }> }[] = [
     { id: 'dashboard', label: 'Dashboard', mobileLabel: 'Dashboard', icon: LayoutDashboard },

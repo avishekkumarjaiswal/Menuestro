@@ -30,6 +30,7 @@ import {
   updateBusinessStatus,
   deleteBusiness,
   checkSlugAvailable,
+  checkManagerEmailAvailable,
   createBusiness
 } from '../../services/firestoreService';
 import { useAuth } from '../../context/AuthContext';
@@ -113,6 +114,8 @@ export const AdminRestaurantsView: React.FC<AdminRestaurantsViewProps> = ({
   const [formData, setFormData] = useState(defaultFormData);
   const [slugChecking, setSlugChecking] = useState(false);
   const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
+  const [emailChecking, setEmailChecking] = useState(false);
+  const [emailAvailable, setEmailAvailable] = useState<boolean | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -153,6 +156,23 @@ export const AdminRestaurantsView: React.FC<AdminRestaurantsViewProps> = ({
     setSlugChecking(false);
   };
 
+  const handleOwnerEmailChange = (email: string) => {
+    const clean = email.trim().toLowerCase();
+    setFormData((prev) => ({ ...prev, ownerEmail: clean }));
+    if (clean && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) {
+      checkEmailDebounced(clean);
+    } else {
+      setEmailAvailable(null);
+    }
+  };
+
+  const checkEmailDebounced = async (emailToTest: string) => {
+    setEmailChecking(true);
+    const available = await checkManagerEmailAvailable(emailToTest);
+    setEmailAvailable(available);
+    setEmailChecking(false);
+  };
+
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim() || !formData.slug.trim()) {
@@ -161,6 +181,18 @@ export const AdminRestaurantsView: React.FC<AdminRestaurantsViewProps> = ({
     }
     if (slugAvailable === false) {
       addToast('This URL slug is already in use. Please choose another.', 'error');
+      return;
+    }
+    if (!formData.ownerEmail.trim()) {
+      addToast('Manager Login Email is required.', 'error');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.ownerEmail.trim())) {
+      addToast('Please enter a valid email address for Manager Login Email.', 'error');
+      return;
+    }
+    if (emailAvailable === false) {
+      addToast('This email is already assigned to another restaurant. Each manager email must be unique.', 'error');
       return;
     }
 
@@ -933,30 +965,47 @@ export const AdminRestaurantsView: React.FC<AdminRestaurantsViewProps> = ({
                 </div>
               </div>
 
-              {/* Owner / Manager Login Email */}
+              {/* Manager Login Email — single source of truth for restaurant access */}
               <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-1.5">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-bold text-emerald-950">
-                    Restaurant Owner / Manager Email
+                    Manager Login Email <span className="text-rose-500">*</span>
                   </label>
                   <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
-                    Direct Login Access
+                    Required · Unique
                   </span>
                 </div>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-emerald-600 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="email"
-                    placeholder="e.g. owner@restaurant.com"
+                    required
+                    placeholder="e.g. manager@restaurant.com"
                     value={formData.ownerEmail}
-                    onChange={(e) => setFormData({ ...formData, ownerEmail: e.target.value })}
-                    className="w-full pl-9 pr-3 py-2 bg-white border border-emerald-200 rounded-lg text-xs text-slate-900 focus:border-[#078A55] focus:ring-1 focus:ring-[#078A55] focus:outline-none"
+                    onChange={(e) => handleOwnerEmailChange(e.target.value)}
+                    className={`w-full pl-9 pr-3 py-2 bg-white border rounded-lg text-xs text-slate-900 focus:ring-1 focus:outline-none ${
+                      emailAvailable === false
+                        ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-200'
+                        : emailAvailable === true
+                        ? 'border-emerald-400 focus:border-[#078A55] focus:ring-[#078A55]/20'
+                        : 'border-emerald-200 focus:border-[#078A55] focus:ring-[#078A55]/20'
+                    }`}
                   />
                 </div>
+                {emailChecking && (
+                  <p className="text-[10px] text-slate-500 mt-1">Checking email availability…</p>
+                )}
+                {!emailChecking && emailAvailable === false && (
+                  <p className="text-[10px] text-rose-500 mt-1 font-medium">⚠ This email is already assigned to another restaurant.</p>
+                )}
+                {!emailChecking && emailAvailable === true && (
+                  <p className="text-[10px] text-emerald-700 mt-1 font-medium">✓ Email is available.</p>
+                )}
                 <p className="text-[11px] text-emerald-800 leading-tight">
-                  When a user logs in with this email, Menuestro will automatically map them to manage this restaurant's dashboard and menus.
+                  The user who logs in with this exact email address will access ONLY this restaurant's dashboard. Must be unique across the platform.
                 </p>
               </div>
+
 
               {/* Tagline */}
               <div>

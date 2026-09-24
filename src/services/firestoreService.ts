@@ -496,7 +496,7 @@ export async function getBusinessByEmail(email: string): Promise<Business | null
 
   const path = 'businesses';
   try {
-    // 1. Direct query by ownerEmail
+    // 1. Query by ownerEmail (Manager Login Email field)
     const qOwner = query(collection(db, path), where('ownerEmail', '==', cleanEmail), limit(1));
     const snapOwner = await getDocs(qOwner);
     if (!snapOwner.empty) {
@@ -512,17 +512,31 @@ export async function getBusinessByEmail(email: string): Promise<Business | null
       return { id: docSnap.id, ...docSnap.data() } as Business;
     }
 
-    // 3. Fallback scan across all active businesses in case of case-sensitivity
-    const all = await getAllBusinesses();
-    const found = all.find(
-      (b) =>
-        b.ownerEmail?.toLowerCase().trim() === cleanEmail ||
-        b.managerEmail?.toLowerCase().trim() === cleanEmail
-    );
-    return found || null;
+    return null;
   } catch (error) {
     console.warn('getBusinessByEmail error:', error);
     return null;
+  }
+}
+
+/**
+ * Check whether a manager/owner email is available across all restaurants.
+ * Returns true if the email is not yet assigned to any restaurant.
+ * Pass excludeBusinessId to allow checking while editing an existing restaurant.
+ */
+export async function checkManagerEmailAvailable(
+  email: string,
+  excludeBusinessId?: string
+): Promise<boolean> {
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail) return false;
+  try {
+    const biz = await getBusinessByEmail(cleanEmail);
+    if (!biz) return true;
+    if (excludeBusinessId && biz.id === excludeBusinessId) return true;
+    return false;
+  } catch {
+    return true; // fail-open: let server-side rules enforce
   }
 }
 
