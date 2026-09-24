@@ -4,6 +4,8 @@ import {
   subscribeCategories,
   getAllMenuItems,
   logAnalyticsEvent,
+  getCachedPublicMenu,
+  setCachedPublicMenu,
 } from '../../services/firestoreService';
 import { Business, Category, MenuItem } from '../../types';
 import { Modal } from '../ui/Modal';
@@ -28,10 +30,13 @@ interface PublicMenuPageProps {
 }
 
 export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({ slug }) => {
-  const [business, setBusiness] = useState<Business | null>(null);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [items, setItems] = useState<MenuItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  // 1. Instant 0ms cached state initialization
+  const initialCache = useMemo(() => getCachedPublicMenu(slug), [slug]);
+
+  const [business, setBusiness] = useState<Business | null>(() => initialCache?.business || null);
+  const [categories, setCategories] = useState<Category[]>(() => initialCache?.categories || []);
+  const [items, setItems] = useState<MenuItem[]>(() => initialCache?.items || []);
+  const [loading, setLoading] = useState(!initialCache?.business);
   const [error, setError] = useState<string | null>(null);
 
   // Search & Filter State
@@ -52,8 +57,6 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({ slug }) => {
     const num = typeof price === 'number' ? price : parseFloat(String(price));
     if (isNaN(num)) return `${sym}${price}`;
     
-    // If integer, display clean whole number (e.g. ₹12, ₹280)
-    // If decimal (e.g. 11.5), display with 2 decimals (e.g. ₹11.50) without rounding away precision
     const hasDecimals = num % 1 !== 0;
     const formatted = hasDecimals
       ? num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -67,11 +70,15 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({ slug }) => {
 
     const initData = async () => {
       try {
-        setLoading(true);
+        if (!initialCache?.business) {
+          setLoading(true);
+        }
         const biz = await getBusinessBySlug(slug);
         if (!biz) {
-          setError('Restaurant not found. Please verify the URL.');
-          setLoading(false);
+          if (!initialCache?.business) {
+            setError('Restaurant not found. Please verify the URL.');
+            setLoading(false);
+          }
           return;
         }
         if (!isMounted) return;
@@ -88,7 +95,7 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({ slug }) => {
           }).catch(console.warn);
         }
 
-        // Real-time listener for categories & items
+        // Real-time listener for categories & items (parallelized & cached)
         unsubCategories = subscribeCategories(biz.id, async (cats) => {
           if (!isMounted) return;
           setCategories(cats);
@@ -108,6 +115,13 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({ slug }) => {
             setItems(uniqueItems);
             setLoading(false);
 
+            // Update local cache
+            setCachedPublicMenu(slug, {
+              business: biz,
+              categories: cats,
+              items: uniqueItems,
+            });
+
             if (itemParam) {
               const match = uniqueItems.find(
                 (i) => (i.id === itemParam || i.name.toLowerCase() === itemParam.toLowerCase()) && i.isAvailable !== false
@@ -118,7 +132,7 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({ slug }) => {
         });
       } catch (err) {
         console.error('Error loading public menu:', err);
-        if (isMounted) {
+        if (isMounted && !initialCache?.business) {
           setError('Failed to load restaurant menu. Please try again.');
           setLoading(false);
         }
@@ -131,7 +145,7 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({ slug }) => {
       isMounted = false;
       if (unsubCategories) unsubCategories();
     };
-  }, [slug, tableParam, itemParam]);
+  }, [slug, tableParam, itemParam, initialCache]);
 
   // Handle Google Review click & event logging
   const handleReviewClick = async () => {

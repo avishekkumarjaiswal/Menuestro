@@ -639,9 +639,96 @@ export async function claimBusinessSlug(businessId: string, ownerId: string, slu
   }
 }
 
+// High-Speed In-Memory and Session Storage Cache Layer
+const businessCache = new Map<string, { data: Business; timestamp: number }>();
+const slugToBusinessIdCache = new Map<string, { id: string; timestamp: number }>();
+const menuItemsCache = new Map<string, { data: MenuItem[]; timestamp: number }>();
+const categoriesCache = new Map<string, { data: Category[]; timestamp: number }>();
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+export function invalidateBusinessMenuCache(businessId?: string, slug?: string): void {
+  if (businessId) {
+    businessCache.delete(businessId);
+    menuItemsCache.delete(businessId);
+    categoriesCache.delete(businessId);
+    try {
+      sessionStorage.removeItem(`menu_payload_${businessId}`);
+    } catch {}
+  }
+  if (slug) {
+    const clean = normalizeSlug(slug);
+    slugToBusinessIdCache.delete(clean);
+    try {
+      sessionStorage.removeItem(`menu_slug_${clean}`);
+    } catch {}
+  }
+}
+
+export interface PublicMenuPayload {
+  business: Business;
+  categories: Category[];
+  items: MenuItem[];
+}
+
+export function getCachedPublicMenu(slug: string): PublicMenuPayload | null {
+  const clean = normalizeSlug(slug);
+  if (!clean) return null;
+
+  try {
+    const sessionData = sessionStorage.getItem(`menu_slug_${clean}`);
+    if (sessionData) {
+      const parsed = JSON.parse(sessionData);
+      if (parsed && parsed.business && Array.isArray(parsed.categories)) {
+        return parsed as PublicMenuPayload;
+      }
+    }
+  } catch {}
+
+  return null;
+}
+
+export function setCachedPublicMenu(slug: string, payload: PublicMenuPayload): void {
+  const clean = normalizeSlug(slug);
+  if (!clean || !payload?.business) return;
+
+  try {
+    sessionStorage.setItem(
+      `menu_slug_${clean}`,
+      JSON.stringify({
+        business: payload.business,
+        categories: payload.categories,
+        items: payload.items,
+        timestamp: Date.now(),
+      })
+    );
+  } catch {}
+}
+
 export async function getBusinessBySlug(slug: string): Promise<Business | null> {
   const cleanSlug = normalizeSlug(slug);
   if (!cleanSlug) return null;
+
+  // 1. Fast in-memory cache check (<1ms)
+  const cachedSlug = slugToBusinessIdCache.get(cleanSlug);
+  if (cachedSlug && Date.now() - cachedSlug.timestamp < CACHE_TTL_MS) {
+    const cachedBiz = businessCache.get(cachedSlug.id);
+    if (cachedBiz && Date.now() - cachedBiz.timestamp < CACHE_TTL_MS) {
+      return cachedBiz.data;
+    }
+  }
+
+  // 2. Fast Session Storage check
+  try {
+    const sessionData = sessionStorage.getItem(`menu_slug_${cleanSlug}`);
+    if (sessionData) {
+      const parsed = JSON.parse(sessionData);
+      if (parsed?.business) {
+        businessCache.set(parsed.business.id, { data: parsed.business, timestamp: Date.now() });
+        slugToBusinessIdCache.set(cleanSlug, { id: parsed.business.id, timestamp: Date.now() });
+        return parsed.business as Business;
+      }
+    }
+  } catch {}
 
   try {
     const slugDocRef = doc(db, 'slugs', cleanSlug);
@@ -651,18 +738,28 @@ export async function getBusinessBySlug(slug: string): Promise<Business | null> 
       const targetBusinessId = slugSnap.data().businessId;
       if (targetBusinessId) {
         const biz = await getBusiness(targetBusinessId);
-        if (biz) return biz;
+        if (biz) {
+          businessCache.set(biz.id, { data: biz, timestamp: Date.now() });
+          slugToBusinessIdCache.set(cleanSlug, { id: biz.id, timestamp: Date.now() });
+          return biz;
+        }
       }
     }
 
     const directBiz = await getBusiness(cleanSlug);
-    if (directBiz) return directBiz;
+    if (directBiz) {
+      businessCache.set(directBiz.id, { data: directBiz, timestamp: Date.now() });
+      slugToBusinessIdCache.set(cleanSlug, { id: directBiz.id, timestamp: Date.now() });
+      return directBiz;
+    }
 
     const q = query(collection(db, 'businesses'), where('slug', '==', cleanSlug), limit(1));
     const querySnapshot = await getDocs(q);
     if (!querySnapshot.empty) {
       const docSnap = querySnapshot.docs[0];
       const foundBiz = { id: docSnap.id, ...docSnap.data() } as Business;
+      businessCache.set(foundBiz.id, { data: foundBiz, timestamp: Date.now() });
+      slugToBusinessIdCache.set(cleanSlug, { id: foundBiz.id, timestamp: Date.now() });
       claimBusinessSlug(foundBiz.id, foundBiz.ownerId, cleanSlug).catch(() => {});
       return foundBiz;
     }
@@ -680,11 +777,20 @@ export async function getBusinessBySlug(slug: string): Promise<Business | null> 
 
 export async function getBusiness(businessId: string): Promise<Business | null> {
   const path = `businesses/${businessId}`;
+  
+  // Cache check
+  const cached = businessCache.get(businessId);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    return cached.data;
+  }
+
   try {
     const docRef = doc(db, path);
     const snap = await getDoc(docRef);
     if (!snap.exists()) return null;
-    return { id: snap.id, ...snap.data() } as Business;
+    const biz = { id: snap.id, ...snap.data() } as Business;
+    businessCache.set(businessId, { data: biz, timestamp: Date.now() });
+    return biz;
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, path);
   }
@@ -2160,6 +2266,8 @@ export async function createCategory(
       updatedAt: category.updatedAt || now,
     });
 
+    invalidateBusinessMenuCache(businessId);
+
     if (adminUser) {
       logAdminActivity({
         adminUserId: adminUser.id,
@@ -2192,6 +2300,8 @@ export async function updateCategory(
       updatedAt: new Date().toISOString(),
     });
 
+    invalidateBusinessMenuCache(businessId);
+
     if (adminUser) {
       logAdminActivity({
         adminUserId: adminUser.id,
@@ -2217,6 +2327,7 @@ export async function deleteCategory(
   const path = `businesses/${businessId}/categories/${categoryId}`;
   try {
     await deleteDoc(doc(db, path));
+    invalidateBusinessMenuCache(businessId);
     if (adminUser) {
       logAdminActivity({
         adminUserId: adminUser.id,
@@ -2251,12 +2362,29 @@ export async function getItemsByCategory(businessId: string, categoryId: string)
 }
 
 export async function getAllMenuItems(businessId: string, categories: Category[]): Promise<MenuItem[]> {
-  const allItems: MenuItem[] = [];
-  for (const cat of categories) {
-    const items = await getItemsByCategory(businessId, cat.id);
-    allItems.push(...items);
+  if (!businessId || !categories || categories.length === 0) return [];
+
+  // 1. In-memory cache check
+  const cached = menuItemsCache.get(businessId);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    return cached.data;
   }
-  return allItems;
+
+  try {
+    // 2. Parallel fetch all categories simultaneously in 1 network roundtrip
+    const promises = categories.map((cat) => getItemsByCategory(businessId, cat.id));
+    const results = await Promise.all(promises);
+    const allItems = results.flat().filter(Boolean);
+    allItems.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+
+    // Save to cache
+    menuItemsCache.set(businessId, { data: allItems, timestamp: Date.now() });
+
+    return allItems;
+  } catch (err) {
+    console.warn('getAllMenuItems parallel fetch error:', err);
+    return [];
+  }
 }
 
 export function subscribeCategoryItems(
@@ -2300,6 +2428,8 @@ export async function createMenuItem(
       updatedAt: item.updatedAt || now,
     });
 
+    invalidateBusinessMenuCache(businessId);
+
     if (adminUser) {
       logAdminActivity({
         adminUserId: adminUser.id,
@@ -2334,6 +2464,8 @@ export async function updateMenuItem(
       updatedAt: new Date().toISOString(),
     });
 
+    invalidateBusinessMenuCache(businessId);
+
     if (adminUser) {
       logAdminActivity({
         adminUserId: adminUser.id,
@@ -2360,6 +2492,7 @@ export async function deleteMenuItem(
   const path = `businesses/${businessId}/categories/${categoryId}/items/${itemId}`;
   try {
     await deleteDoc(doc(db, path));
+    invalidateBusinessMenuCache(businessId);
     if (adminUser) {
       logAdminActivity({
         adminUserId: adminUser.id,
