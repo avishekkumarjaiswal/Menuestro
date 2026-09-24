@@ -30,7 +30,9 @@ import {
   Check,
   AlertTriangle,
   Layers,
+  UploadCloud,
 } from 'lucide-react';
+import { MenuCsvImportModal } from '../common/MenuCsvImportModal';
 
 export const MenuManagementView: React.FC = () => {
   const { business } = useAuth();
@@ -50,6 +52,9 @@ export const MenuManagementView: React.FC = () => {
 
   // Category Manager modal state
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+
+  // CSV Import modal state
+  const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
 
   // Delete modal state
   const [itemToDelete, setItemToDelete] = useState<MenuItem | null>(null);
@@ -265,6 +270,13 @@ export const MenuManagementView: React.FC = () => {
         description="Add, edit or hide menu items. Changes reflect instantly on customer devices."
         action={
           <div className="flex items-center gap-2.5">
+            <Button
+              variant="secondary"
+              leftIcon={<UploadCloud className="w-4 h-4 text-slate-600" />}
+              onClick={() => setIsCsvModalOpen(true)}
+            >
+              Import CSV
+            </Button>
             <Button
               variant="secondary"
               leftIcon={<Layers className="w-4 h-4 text-[#078A55]" />}
@@ -643,6 +655,18 @@ export const MenuManagementView: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      {/* CSV Import Modal */}
+      <MenuCsvImportModal
+        isOpen={isCsvModalOpen}
+        onClose={() => setIsCsvModalOpen(false)}
+        businessId={business?.id || ''}
+        existingCategories={categories}
+        currencySymbol={business?.currency || '₹'}
+        onImportComplete={() => {
+          showToast('Menu items and categories imported successfully!', 'success');
+        }}
+      />
     </div>
   );
 };
