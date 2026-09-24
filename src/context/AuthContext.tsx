@@ -47,7 +47,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<UserProfile | null>(() => {
     try {
       const cached = localStorage.getItem('menuestro_cached_profile');
-      return cached ? JSON.parse(cached) : null;
+      if (cached && auth.currentUser) {
+        const parsed = JSON.parse(cached);
+        if (parsed?.userId === auth.currentUser.uid) {
+          return parsed;
+        }
+      }
+      return null;
     } catch {
       return null;
     }
@@ -55,14 +61,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [business, setBusinessState] = useState<Business | null>(() => {
     try {
       const cached = localStorage.getItem('menuestro_cached_business');
-      return cached ? JSON.parse(cached) : null;
+      if (cached && auth.currentUser) {
+        const parsed = JSON.parse(cached);
+        const emailLower = auth.currentUser.email?.toLowerCase().trim() || '';
+        const isOwner = parsed?.ownerId === auth.currentUser.uid;
+        const isEmailMatch = emailLower && (parsed?.ownerEmail?.toLowerCase().trim() === emailLower || parsed?.managerEmail?.toLowerCase().trim() === emailLower);
+        if (isOwner || isEmailMatch) {
+          return parsed;
+        }
+      }
+      return null;
     } catch {
       return null;
     }
   });
   const [isSuperAdmin, setIsSuperAdmin] = useState<boolean>(() => {
     try {
-      return localStorage.getItem('menuestro_cached_is_admin') === 'true';
+      if (auth.currentUser) {
+        return localStorage.getItem('menuestro_cached_is_admin') === 'true';
+      }
+      return false;
     } catch {
       return false;
     }
@@ -190,6 +208,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         clearTimeout(safetyTimer);
         setUser(currentUser);
         if (currentUser) {
+          // Synchronously clear business if it doesn't belong to the newly active user
+          setBusinessState((prev) => {
+            if (!prev) return null;
+            const emailLower = currentUser.email?.toLowerCase().trim() || '';
+            const isOwner = prev.ownerId === currentUser.uid;
+            const isEmailMatch = emailLower && (prev.ownerEmail?.toLowerCase().trim() === emailLower || prev.managerEmail?.toLowerCase().trim() === emailLower);
+            return (isOwner || isEmailMatch) ? prev : null;
+          });
+
           try {
             await loadUserData(currentUser);
           } catch (e) {
