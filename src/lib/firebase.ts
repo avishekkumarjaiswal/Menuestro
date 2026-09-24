@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { initializeFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import firebaseConfig from '../../firebase-applet-config.json';
@@ -13,6 +13,13 @@ export const db = firebaseConfig.firestoreDatabaseId
 
 export const auth = getAuth(app);
 export const storage = getStorage(app);
+
+// Enforce persistent session storage across tab closures, reloads and inactivity
+if (typeof window !== 'undefined') {
+  setPersistence(auth, browserLocalPersistence).catch((err) => {
+    console.warn('Firebase Auth setPersistence error:', err);
+  });
+}
 
 // Connection test on boot (from firebase-integration skill)
 async function testConnection() {

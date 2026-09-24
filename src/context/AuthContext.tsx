@@ -8,7 +8,9 @@ import {
   signOut,
   sendPasswordResetEmail,
   onAuthStateChanged,
-  updateProfile
+  updateProfile,
+  setPersistence,
+  browserLocalPersistence
 } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import {
@@ -57,6 +59,21 @@ function clearAuthCache() {
   } catch {}
 }
 
+function getInitialCachedState() {
+  try {
+    const cachedProfile = localStorage.getItem('menuestro_cached_profile');
+    const cachedBusiness = localStorage.getItem('menuestro_cached_business');
+    const cachedIsAdmin = localStorage.getItem('menuestro_cached_is_admin');
+    return {
+      profile: cachedProfile ? (JSON.parse(cachedProfile) as UserProfile) : null,
+      business: cachedBusiness ? (JSON.parse(cachedBusiness) as Business) : null,
+      isSuperAdmin: cachedIsAdmin === 'true',
+    };
+  } catch {
+    return { profile: null, business: null, isSuperAdmin: false };
+  }
+}
+
 function bizBelongsToEmail(biz: Business, emailLower: string): boolean {
   if (!emailLower || !biz) return false;
   return (
@@ -67,13 +84,14 @@ function bizBelongsToEmail(biz: Business, emailLower: string): boolean {
 
 // ─── Provider ────────────────────────────────────────────────────────────────
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [business, setBusinessState] = useState<Business | null>(null);
+  const initialCache = getInitialCachedState();
+  const [user, setUser] = useState<User | null>(auth.currentUser);
+  const [profile, setProfile] = useState<UserProfile | null>(initialCache.profile);
+  const [business, setBusinessState] = useState<Business | null>(initialCache.business);
   const [application, setApplicationState] = useState<RestaurantApplication | null>(null);
-  const [isSuperAdmin, setIsSuperAdmin] = useState<boolean>(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState<boolean>(initialCache.isSuperAdmin);
   const [isUnassigned, setIsUnassigned] = useState<boolean>(false);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(!auth.currentUser && !initialCache.profile && !initialCache.business);
 
   const setBusiness = (biz: Business | null) => {
     setBusinessState(biz);
@@ -216,23 +234,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // ── onAuthStateChanged ──────────────────────────────────────────────────
   useEffect(() => {
+    // Ensure browser persistence is configured
+    setPersistence(auth, browserLocalPersistence).catch((err) => {
+      console.warn('Set persistence warning:', err);
+    });
+
     const unsubscribe = onAuthStateChanged(
       auth,
       async (currentUser) => {
         if (currentUser) {
           setUser(currentUser);
-          setBusinessState(null);
-          setProfile(null);
-          setApplicationState(null);
-          setIsSuperAdmin(false);
-          setIsUnassigned(false);
 
           try {
             await loadUserData(currentUser);
           } catch (e) {
             console.warn('[AuthContext] loadUserData fallback:', e);
-            setIsUnassigned(true);
-            setBusiness(null);
+            // If cached state exists from localStorage, retain it rather than logging out
+            const cached = getInitialCachedState();
+            if (cached.business) {
+              setBusinessState(cached.business);
+              if (cached.profile) setProfile(cached.profile);
+              setIsSuperAdmin(cached.isSuperAdmin);
+            } else if (!business && !profile) {
+              setIsUnassigned(true);
+            }
           }
         } else {
           setUser(null);
@@ -263,33 +288,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signIn = async (email: string, pass: string) => {
-    setUser(null); setProfile(null); setBusinessState(null);
-    setApplicationState(null); setIsSuperAdmin(false); setIsUnassigned(false);
-    clearAuthCache();
+    try {
+      await setPersistence(auth, browserLocalPersistence);
+    } catch (e) {
+      console.warn('Set persistence error:', e);
+    }
     const cred = await signInWithEmailAndPassword(auth, email, pass);
+    setUser(cred.user);
     setLoading(true);
     await loadUserData(cred.user);
     setLoading(false);
   };
 
   const signUp = async (email: string, pass: string, name: string) => {
-    setUser(null); setProfile(null); setBusinessState(null);
-    setApplicationState(null); setIsSuperAdmin(false); setIsUnassigned(false);
-    clearAuthCache();
+    try {
+      await setPersistence(auth, browserLocalPersistence);
+    } catch (e) {
+      console.warn('Set persistence error:', e);
+    }
     const cred = await createUserWithEmailAndPassword(auth, email, pass);
     if (name) await updateProfile(cred.user, { displayName: name });
+    setUser(cred.user);
     setLoading(true);
     await loadUserData(cred.user);
     setLoading(false);
   };
 
   const signInWithGoogle = async () => {
-    setUser(null); setProfile(null); setBusinessState(null);
-    setApplicationState(null); setIsSuperAdmin(false); setIsUnassigned(false);
-    clearAuthCache();
+    try {
+      await setPersistence(auth, browserLocalPersistence);
+    } catch (e) {
+      console.warn('Set persistence error:', e);
+    }
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
     const cred = await signInWithPopup(auth, provider);
+    setUser(cred.user);
     setLoading(true);
     await loadUserData(cred.user);
     setLoading(false);
