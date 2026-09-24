@@ -262,6 +262,50 @@ export const MenuManagementView: React.FC = () => {
     }
   };
 
+  const [isCleaningDuplicates, setIsCleaningDuplicates] = useState(false);
+
+  // Detect duplicate dishes by category and name
+  const duplicateItems = useMemo(() => {
+    const seen = new Map<string, MenuItem[]>();
+    items.forEach((item) => {
+      const key = `${item.categoryId}___${item.name.toLowerCase().trim()}`;
+      const list = seen.get(key) || [];
+      list.push(item);
+      seen.set(key, list);
+    });
+
+    const duplicatesToDelete: MenuItem[] = [];
+    seen.forEach((list) => {
+      if (list.length > 1) {
+        // Keep the first one, mark remaining copies as duplicates
+        duplicatesToDelete.push(...list.slice(1));
+      }
+    });
+
+    return duplicatesToDelete;
+  }, [items]);
+
+  const handleCleanDuplicates = async () => {
+    if (duplicateItems.length === 0 || !business?.id) return;
+    setIsCleaningDuplicates(true);
+    try {
+      const bizId = business.id;
+      for (const dup of duplicateItems) {
+        await deleteMenuItem(bizId, dup.categoryId, dup.id);
+      }
+      setItems((prev) => {
+        const deletedIds = new Set(duplicateItems.map((d) => d.id));
+        return prev.filter((i) => !deletedIds.has(i.id));
+      });
+      showToast(`Successfully removed ${duplicateItems.length} duplicate dish${duplicateItems.length > 1 ? 'es' : ''}`, 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to clean up duplicates', 'error');
+    } finally {
+      setIsCleaningDuplicates(false);
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-[1440px] mx-auto select-none font-sans">
       {/* 1. Standard Page Header */}
@@ -297,6 +341,32 @@ export const MenuManagementView: React.FC = () => {
           </div>
         }
       />
+
+      {/* Duplicate Cleanup Alert Banner if duplicates exist in database */}
+      {duplicateItems.length > 0 && (
+        <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-[12px] flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in duration-150">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+            <div>
+              <p className="text-xs font-bold text-amber-900">
+                {duplicateItems.length} duplicate dish{duplicateItems.length > 1 ? 'es' : ''} detected on menu
+              </p>
+              <p className="text-[11px] text-amber-700">
+                Duplicates like multiple entries for the same dish can be automatically cleaned up while keeping latest pricing.
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            isLoading={isCleaningDuplicates}
+            onClick={handleCleanDuplicates}
+            className="bg-white hover:bg-amber-100 text-amber-900 border-amber-300 shrink-0 cursor-pointer"
+          >
+            Remove Duplicates
+          </Button>
+        </div>
+      )}
 
       {/* 2. Category Tabs */}
       <Tabs

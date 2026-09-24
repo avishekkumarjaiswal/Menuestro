@@ -1,7 +1,12 @@
 import React, { useState, useRef } from 'react';
 import { Modal } from '../ui/Modal';
-import { Category } from '../../types';
-import { createCategory, createMenuItem } from '../../services/firestoreService';
+import { Category, MenuItem } from '../../types';
+import {
+  createCategory,
+  createMenuItem,
+  updateMenuItem,
+  getAllMenuItems,
+} from '../../services/firestoreService';
 import {
   UploadCloud,
   FileText,
@@ -10,12 +15,10 @@ import {
   AlertCircle,
   AlertTriangle,
   Loader2,
-  ChevronRight,
   Sparkles,
-  Layers,
-  Utensils,
+  RefreshCw,
+  Plus,
   Check,
-  X,
 } from 'lucide-react';
 
 export interface ParsedCsvItem {
@@ -30,6 +33,7 @@ export interface ParsedCsvItem {
   isValid: boolean;
   validationError?: string;
   selected: boolean;
+  isExistingMatch?: boolean;
 }
 
 interface MenuCsvImportModalProps {
@@ -77,7 +81,7 @@ function parseCsvLine(line: string): string[] {
 }
 
 /**
- * Parses raw CSV text into structured items
+ * Parses raw CSV text into structured items and automatically deduplicates within the CSV
  */
 function parseMenuCsv(rawText: string): { items: ParsedCsvItem[]; errors: string[] } {
   const lines = rawText
@@ -108,7 +112,8 @@ function parseMenuCsv(rawText: string): { items: ParsedCsvItem[]; errors: string
   if (catIdx === -1 && rawHeaders.length >= 1) catIdx = 0;
   if (priceIdx === -1 && rawHeaders.length >= 3) priceIdx = 2;
 
-  const parsedItems: ParsedCsvItem[] = [];
+  // Use map to automatically deduplicate multiple rows with same category & dish name within the CSV
+  const dedupMap = new Map<string, ParsedCsvItem>();
   const errors: string[] = [];
 
   for (let i = 1; i < lines.length; i++) {
@@ -142,10 +147,14 @@ function parseMenuCsv(rawText: string): { items: ParsedCsvItem[]; errors: string
       validationError = 'Missing Dish/Item Name';
     }
 
-    parsedItems.push({
+    const cleanCat = rawCategory.trim() || 'General';
+    const cleanName = rawName.trim();
+    const dedupKey = `${cleanCat.toLowerCase()}___${cleanName.toLowerCase()}`;
+
+    dedupMap.set(dedupKey, {
       id: `csv-row-${i}`,
-      categoryName: rawCategory.trim() || 'General',
-      name: rawName.trim(),
+      categoryName: cleanCat,
+      name: cleanName,
       price: price >= 0 ? price : 0,
       description: rawDesc.trim(),
       isAvailable,
@@ -157,7 +166,7 @@ function parseMenuCsv(rawText: string): { items: ParsedCsvItem[]; errors: string
     });
   }
 
-  return { items: parsedItems, errors };
+  return { items: Array.from(dedupMap.values()), errors };
 }
 
 const SAMPLE_CSV_CONTENT = `Category,Item Name,Price,Description,Is Available,Tags,Image URL
@@ -188,6 +197,9 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
   const [showPasteArea, setShowPasteArea] = useState<boolean>(false);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
+  // Existing database items for smart upsert matching
+  const [existingItemsMap, setExistingItemsMap] = useState<Map<string, MenuItem>>(new Map());
+
   // Import execution progress
   const [importProgress, setImportProgress] = useState<{
     current: number;
@@ -195,19 +207,21 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
     currentAction: string;
     createdCategoriesCount: number;
     createdItemsCount: number;
+    updatedItemsCount: number;
   }>({
     current: 0,
     total: 0,
     currentAction: '',
     createdCategoriesCount: 0,
     createdItemsCount: 0,
+    updatedItemsCount: 0,
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Reset state when modal closes/opens
+  // Reset state when modal closes/opens & load existing menu items for matching
   React.useEffect(() => {
-    if (isOpen) {
+    if (isOpen && businessId) {
       setStep('upload');
       setParsedItems([]);
       setParseErrors([]);
@@ -215,8 +229,18 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
       setRawPastedText('');
       setShowPasteArea(false);
       setCategoryFilter('all');
+
+      // Preload existing items to identify what will be updated vs created
+      getAllMenuItems(businessId, existingCategories).then((items) => {
+        const map = new Map<string, MenuItem>();
+        items.forEach((item) => {
+          map.set(`${item.categoryId}___${item.name.toLowerCase().trim()}`, item);
+          map.set(item.name.toLowerCase().trim(), item);
+        });
+        setExistingItemsMap(map);
+      }).catch(console.warn);
     }
-  }, [isOpen]);
+  }, [isOpen, businessId, existingCategories]);
 
   const handleDownloadSample = () => {
     const blob = new Blob([SAMPLE_CSV_CONTENT], { type: 'text/csv;charset=utf-8;' });
@@ -270,7 +294,16 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
       return;
     }
 
-    setParsedItems(items);
+    // Check which items are updates vs new creations
+    const mappedItems = items.map((item) => {
+      const isMatch = existingItemsMap.has(item.name.toLowerCase().trim());
+      return {
+        ...item,
+        isExistingMatch: isMatch,
+      };
+    });
+
+    setParsedItems(mappedItems);
     setParseErrors(errors);
     setStep('preview');
   };
@@ -299,7 +332,10 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
     existingCategories.some((ec) => ec.name.toLowerCase() === catName.toLowerCase())
   );
 
-  // Execute Batch Import
+  const matchedUpdatesCount = selectedItems.filter((item) => item.isExistingMatch).length;
+  const brandNewCount = selectedItems.length - matchedUpdatesCount;
+
+  // Execute Batch Upsert (Never duplicate — update existing dishes, create new dishes)
   const handleExecuteImport = async () => {
     if (selectedItems.length === 0 || !businessId) return;
 
@@ -310,6 +346,7 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
       currentAction: 'Preparing import...',
       createdCategoriesCount: 0,
       createdItemsCount: 0,
+      updatedItemsCount: 0,
     });
 
     try {
@@ -324,6 +361,7 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
       let completedSteps = 0;
       let categoriesCreated = 0;
       let itemsCreated = 0;
+      let itemsUpdated = 0;
 
       // 2. Create missing categories
       let nextSortOrder = existingCategories.length + 1;
@@ -351,7 +389,15 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
         completedSteps++;
       }
 
-      // 3. Create menu items grouped by category
+      // 3. Fetch latest items to guarantee zero duplicate creation during upsert
+      const currentDbItems = await getAllMenuItems(businessId, existingCategories);
+      const dbItemMap = new Map<string, MenuItem>();
+      currentDbItems.forEach((item) => {
+        dbItemMap.set(`${item.categoryId}___${item.name.toLowerCase().trim()}`, item);
+        dbItemMap.set(item.name.toLowerCase().trim(), item);
+      });
+
+      // 4. Upsert menu items: Update existing matches, create new items
       for (let i = 0; i < selectedItems.length; i++) {
         const item = selectedItems[i];
         const targetCatId = categoryMap.get(item.categoryName.toLowerCase().trim());
@@ -361,31 +407,86 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
           continue;
         }
 
-        setImportProgress((prev) => ({
-          ...prev,
-          current: completedSteps + 1,
-          currentAction: `Importing item "${item.name}" (${i + 1}/${selectedItems.length})...`,
-          createdCategoriesCount: categoriesCreated,
-          createdItemsCount: itemsCreated,
-        }));
+        const cleanName = item.name.toLowerCase().trim();
+        const existingMatch = dbItemMap.get(`${targetCatId}___${cleanName}`) || dbItemMap.get(cleanName);
 
-        await createMenuItem(
-          businessId,
-          targetCatId,
-          {
-            name: item.name,
-            description: item.description || '',
-            price: item.price,
-            imageUrl: item.imageUrl || '',
-            isAvailable: item.isAvailable,
-            sortOrder: i + 1,
-            tags: item.tags as any,
-          },
-          undefined,
-          adminUser
-        );
+        if (existingMatch) {
+          // NO DUPLICATES — UPDATE EXISTING DISH WITH NEW PRICE & DETAILS
+          setImportProgress((prev) => ({
+            ...prev,
+            current: completedSteps + 1,
+            currentAction: `Updating existing dish "${item.name}" (Price: ${currencySymbol}${item.price})...`,
+            createdCategoriesCount: categoriesCreated,
+            createdItemsCount: itemsCreated,
+            updatedItemsCount: itemsUpdated,
+          }));
 
-        itemsCreated++;
+          await updateMenuItem(
+            businessId,
+            existingMatch.categoryId,
+            existingMatch.id,
+            {
+              name: item.name,
+              price: item.price,
+              description: item.description || existingMatch.description || '',
+              isAvailable: item.isAvailable,
+              tags: item.tags.length > 0 ? (item.tags as any) : existingMatch.tags || [],
+              imageUrl: item.imageUrl || existingMatch.imageUrl || '',
+            },
+            adminUser
+          );
+
+          itemsUpdated++;
+        } else {
+          // CREATE NEW DISH
+          setImportProgress((prev) => ({
+            ...prev,
+            current: completedSteps + 1,
+            currentAction: `Creating new dish "${item.name}" (${i + 1}/${selectedItems.length})...`,
+            createdCategoriesCount: categoriesCreated,
+            createdItemsCount: itemsCreated,
+            updatedItemsCount: itemsUpdated,
+          }));
+
+          const createdId = await createMenuItem(
+            businessId,
+            targetCatId,
+            {
+              name: item.name,
+              description: item.description || '',
+              price: item.price,
+              imageUrl: item.imageUrl || '',
+              isAvailable: item.isAvailable,
+              sortOrder: i + 1,
+              tags: item.tags as any,
+            },
+            undefined,
+            adminUser
+          );
+
+          // Register in lookup map to prevent subsequent duplicates within the batch
+          if (createdId) {
+            const registeredItem: MenuItem = {
+              id: createdId,
+              businessId,
+              categoryId: targetCatId,
+              name: item.name,
+              description: item.description || '',
+              price: item.price,
+              imageUrl: item.imageUrl || '',
+              isAvailable: item.isAvailable,
+              sortOrder: i + 1,
+              tags: item.tags as any,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            };
+            dbItemMap.set(`${targetCatId}___${cleanName}`, registeredItem);
+            dbItemMap.set(cleanName, registeredItem);
+          }
+
+          itemsCreated++;
+        }
+
         completedSteps++;
       }
 
@@ -395,6 +496,7 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
         currentAction: 'Complete!',
         createdCategoriesCount: categoriesCreated,
         createdItemsCount: itemsCreated,
+        updatedItemsCount: itemsUpdated,
       });
 
       setStep('completed');
@@ -417,12 +519,12 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
       title="Import Menu & Dishes from CSV"
       description={
         step === 'upload'
-          ? 'Upload a spreadsheet or CSV file to bulk import categories and dishes.'
+          ? 'Upload a spreadsheet or CSV file to bulk update or add menu items without duplicates.'
           : step === 'preview'
-          ? 'Review and select the menu items you want to import.'
+          ? 'Review dishes before importing. Existing items will have their prices & details updated.'
           : step === 'importing'
-          ? 'Importing menu items to restaurant database...'
-          : 'Menu import completed successfully.'
+          ? 'Updating menu items and syncing database...'
+          : 'Menu sync completed successfully.'
       }
       maxWidth="2xl"
     >
@@ -441,7 +543,7 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
                 <div>
                   <h4 className="text-xs font-bold text-slate-900">Need the exact CSV format?</h4>
                   <p className="text-[11px] text-slate-500">
-                    Download our ready-to-use sample template with example dishes, prices, and tags.
+                    Download our ready-to-use sample template. Existing dishes will be updated without duplicates.
                   </p>
                 </div>
               </div>
@@ -477,7 +579,7 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
                   Click to select CSV or drag & drop here
                 </p>
                 <p className="text-[11px] text-slate-500 mt-0.5">
-                  Supports .csv and text files with columns for Category, Item Name, Price, Description, etc.
+                  Safe import: Automatically updates prices/details for matching dishes with 0 duplicates.
                 </p>
               </div>
             </div>
@@ -538,27 +640,44 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
         {step === 'preview' && (
           <div className="space-y-3.5">
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
               <div className="p-3 bg-slate-50 border border-slate-200/90 rounded-xl">
-                <span className="text-[11px] text-slate-500 font-medium block">Total Dishes</span>
+                <span className="text-[11px] text-slate-500 font-medium block">Total In Batch</span>
                 <span className="text-base font-bold text-slate-900 block mt-0.5">
-                  {selectedItems.length} / {parsedItems.length} selected
+                  {selectedItems.length} selected
+                </span>
+              </div>
+
+              <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl">
+                <span className="text-[11px] text-blue-800 font-medium block">Will Update Existing</span>
+                <span className="text-base font-bold text-blue-950 block mt-0.5 flex items-center gap-1">
+                  <RefreshCw className="w-3.5 h-3.5 text-blue-600" />
+                  <span>{matchedUpdatesCount} dishes</span>
                 </span>
               </div>
 
               <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl">
-                <span className="text-[11px] text-emerald-800 font-medium block">Categories to Create</span>
-                <span className="text-base font-bold text-emerald-950 block mt-0.5">
-                  {categoriesToCreate.length} new ({existingCategoryMatches.length} existing)
+                <span className="text-[11px] text-emerald-800 font-medium block">Will Create New</span>
+                <span className="text-base font-bold text-emerald-950 block mt-0.5 flex items-center gap-1">
+                  <Plus className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>{brandNewCount} dishes</span>
                 </span>
               </div>
 
               <div className="p-3 bg-slate-50 border border-slate-200/90 rounded-xl">
-                <span className="text-[11px] text-slate-500 font-medium block">File Loaded</span>
-                <span className="text-base font-semibold text-slate-800 block mt-0.5 truncate">
-                  {fileName || 'Pasted CSV'}
+                <span className="text-[11px] text-slate-500 font-medium block">Categories to Add</span>
+                <span className="text-base font-bold text-slate-900 block mt-0.5">
+                  {categoriesToCreate.length} new
                 </span>
               </div>
+            </div>
+
+            {/* Smart Duplication Prevention Callout */}
+            <div className="p-2.5 bg-emerald-50/60 border border-emerald-200/80 rounded-lg flex items-center gap-2 text-emerald-900">
+              <Sparkles className="w-3.5 h-3.5 text-[#078A55] shrink-0" />
+              <p className="text-[11px]">
+                <b>Duplicate protection active:</b> Any dish matching an existing name will update its price and description without duplicating.
+              </p>
             </div>
 
             {/* Category Filter & Select All Controls */}
@@ -606,8 +725,8 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
                     <th className="p-2.5 w-8 text-center">✓</th>
                     <th className="p-2.5">Dish Name</th>
                     <th className="p-2.5">Category</th>
-                    <th className="p-2.5">Price</th>
-                    <th className="p-2.5">Tags</th>
+                    <th className="p-2.5">New Price</th>
+                    <th className="p-2.5">Action Plan</th>
                     <th className="p-2.5">Status</th>
                   </tr>
                 </thead>
@@ -651,20 +770,15 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
                         {item.price}
                       </td>
                       <td className="p-2.5">
-                        <div className="flex flex-wrap gap-1">
-                          {item.tags.length > 0 ? (
-                            item.tags.map((t, idx) => (
-                              <span
-                                key={idx}
-                                className="bg-emerald-50 text-emerald-800 border border-emerald-200/60 px-1.5 py-0.5 rounded text-[9px] font-medium"
-                              >
-                                {t}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="text-slate-400 text-[10px]">—</span>
-                          )}
-                        </div>
+                        {item.isExistingMatch ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                            <RefreshCw className="w-2.5 h-2.5" /> Updates Price/Info
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            <Plus className="w-2.5 h-2.5" /> Creates New Dish
+                          </span>
+                        )}
                       </td>
                       <td className="p-2.5">
                         {item.isValid ? (
@@ -700,7 +814,7 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
                 className="px-4 py-2 bg-[#078A55] hover:bg-[#067347] disabled:opacity-50 text-white font-bold rounded-lg text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
               >
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>Import {selectedItems.length} Dishes Now</span>
+                <span>Sync {selectedItems.length} Dishes Now</span>
               </button>
             </div>
           </div>
@@ -716,7 +830,7 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
             </div>
 
             <div className="space-y-1">
-              <h3 className="text-sm font-bold text-slate-900">Importing Menu into Database...</h3>
+              <h3 className="text-sm font-bold text-slate-900">Syncing Menu into Database...</h3>
               <p className="text-xs text-slate-500">{importProgress.currentAction}</p>
             </div>
 
@@ -750,10 +864,9 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
             </div>
 
             <div className="space-y-1">
-              <h3 className="text-sm font-bold text-slate-900">Menu Successfully Imported!</h3>
+              <h3 className="text-sm font-bold text-slate-900">Menu Successfully Synced!</h3>
               <p className="text-xs text-slate-600 max-w-md mx-auto">
-                Created <b>{importProgress.createdItemsCount} dishes</b> across{' '}
-                <b>{uniqueCategories.length} categories</b>. Your live menu has been updated.
+                Updated <b>{importProgress.updatedItemsCount} existing dishes</b> with new prices/details, and created <b>{importProgress.createdItemsCount} new dishes</b>. Zero duplicate dishes were created.
               </p>
             </div>
 
