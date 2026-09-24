@@ -302,40 +302,52 @@ export const OnboardingWizard: React.FC = () => {
 
       <div className="w-full max-w-2xl bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden p-6 md:p-10">
         {/* Existing Restaurants Detected Banner */}
-        {existingBusinesses.length > 0 && step === 1 && (
-          <div className="mb-6 p-4.5 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50/70 border border-emerald-200 shadow-xs">
-            <div className="flex items-center justify-between gap-3 mb-1.5">
-              <div className="flex items-center gap-2">
-                <Store className="w-4.5 h-4.5 text-emerald-700 shrink-0" />
-                <h3 className="text-sm font-bold text-slate-900">Already have a restaurant in Menuestro?</h3>
+        {(() => {
+          const userEmailLower = user?.email?.toLowerCase().trim() || '';
+          const matchingBusinesses = existingBusinesses.filter((b) => {
+            if (!user) return false;
+            if (b.ownerId === user.uid) return true;
+            if (userEmailLower && (b.ownerEmail?.toLowerCase().trim() === userEmailLower || b.managerEmail?.toLowerCase().trim() === userEmailLower)) return true;
+            return false;
+          });
+
+          if (matchingBusinesses.length === 0 || step !== 1) return null;
+
+          return (
+            <div className="mb-6 p-4.5 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50/70 border border-emerald-200 shadow-xs">
+              <div className="flex items-center justify-between gap-3 mb-1.5">
+                <div className="flex items-center gap-2">
+                  <Store className="w-4.5 h-4.5 text-emerald-700 shrink-0" />
+                  <h3 className="text-sm font-bold text-slate-900">Already have a restaurant in Menuestro?</h3>
+                </div>
+                <span className="text-[11px] font-bold bg-emerald-600 text-white px-2 py-0.5 rounded-full">
+                  Quick Link
+                </span>
               </div>
-              <span className="text-[11px] font-bold bg-emerald-600 text-white px-2 py-0.5 rounded-full">
-                Quick Link
-              </span>
+              <p className="text-xs text-slate-600 mb-3">
+                We found existing restaurant{matchingBusinesses.length > 1 ? 's' : ''} associated with your account. Click below to connect directly to your dashboard:
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {matchingBusinesses.map((biz) => (
+                  <button
+                    key={biz.id}
+                    type="button"
+                    onClick={() => handleLinkExistingBusiness(biz)}
+                    disabled={linkingBizId === biz.id}
+                    className="px-3.5 py-2 rounded-xl bg-white hover:bg-emerald-600 border border-emerald-300 text-emerald-800 hover:text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {linkingBizId === biz.id ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    )}
+                    <span>Open &ldquo;{biz.name}&rdquo; Dashboard</span>
+                  </button>
+                ))}
+              </div>
             </div>
-            <p className="text-xs text-slate-600 mb-3">
-              We found existing restaurant{existingBusinesses.length > 1 ? 's' : ''} in your database. Click below to connect this account directly to your dashboard:
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {existingBusinesses.map((biz) => (
-                <button
-                  key={biz.id}
-                  type="button"
-                  onClick={() => handleLinkExistingBusiness(biz)}
-                  disabled={linkingBizId === biz.id}
-                  className="px-3.5 py-2 rounded-xl bg-white hover:bg-emerald-600 border border-emerald-300 text-emerald-800 hover:text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                >
-                  {linkingBizId === biz.id ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                  )}
-                  <span>Open &ldquo;{biz.name}&rdquo; Dashboard</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Step Progress Bar */}
         <div className="mb-8">

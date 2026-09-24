@@ -145,16 +145,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // 3. Fallback: check by ownerId
       const ownedBiz = await getBusinessByOwner(currentUser.uid);
       if (ownedBiz) {
+        userProf.businessId = ownedBiz.id;
+        setProfile({ ...userProf, businessId: ownedBiz.id });
         setBusiness(ownedBiz);
         return;
       }
 
-      // 4. Fallback: check cached business
+      // 4. Fallback: check cached business ONLY IF it strictly belongs to this user
       try {
         const cachedBizJson = localStorage.getItem('menuestro_cached_business');
         if (cachedBizJson) {
           const cached = JSON.parse(cachedBizJson);
-          if (cached?.id) {
+          const isOwner = cached?.ownerId === currentUser.uid;
+          const isEmailMatch = emailLower && (cached?.ownerEmail?.toLowerCase() === emailLower || cached?.managerEmail?.toLowerCase() === emailLower);
+          const isAssigned = userProf.businessId && cached?.id === userProf.businessId;
+
+          if (cached?.id && (isOwner || isEmailMatch || isAssigned)) {
             const biz = await getBusiness(cached.id);
             if (biz) {
               setBusiness(biz);
@@ -168,6 +174,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setBusiness(null);
     } catch (err) {
       console.error('Error loading user/business data:', err);
+      setBusiness(null);
     }
   };
 
@@ -219,11 +226,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signIn = async (email: string, pass: string) => {
+    setBusiness(null);
     const cred = await signInWithEmailAndPassword(auth, email, pass);
     await loadUserData(cred.user);
   };
 
   const signUp = async (email: string, pass: string, name: string) => {
+    setBusiness(null);
     const cred = await createUserWithEmailAndPassword(auth, email, pass);
     if (name) {
       await updateProfile(cred.user, { displayName: name });
@@ -247,6 +256,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signInWithGoogle = async () => {
+    setBusiness(null);
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
     const cred = await signInWithPopup(auth, provider);
@@ -263,6 +273,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setProfile(null);
     setBusiness(null);
     setIsSuperAdmin(false);
+    try {
+      localStorage.removeItem('menuestro_cached_profile');
+      localStorage.removeItem('menuestro_cached_business');
+      localStorage.removeItem('menuestro_cached_is_admin');
+    } catch {}
   };
 
   return (
