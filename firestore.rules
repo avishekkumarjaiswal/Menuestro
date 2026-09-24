@@ -78,6 +78,18 @@ service cloud.firestore {
       allow write: if isSuperAdmin();
     }
 
+    // 1b. Pending business assignments — keyed by email address
+    // Super Admin writes these when creating/updating a restaurant with a manager email.
+    // Authenticated users can read their own record (by their email address).
+    match /pendingAssignments/{emailKey} {
+      allow read: if isSignedIn() && (
+        request.auth.token.email != null &&
+        request.auth.token.email.lower() == emailKey
+      ) || isSuperAdmin();
+      allow write: if isSuperAdmin() || isSignedIn();
+    }
+
+
     // 2. User profiles
     // Users cannot assign platform admin roles to themselves.
     match /users/{userId} {

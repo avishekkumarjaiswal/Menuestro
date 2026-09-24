@@ -17,11 +17,10 @@ import {
   updateUserProfile,
   getBusiness,
   getBusinessByOwner,
-  getBusinessByEmail,
   linkUserToBusinessIfEmailMatches,
   checkIsSuperAdmin,
   grantSuperAdminRole,
-  getAllBusinesses
+  resolvePendingBusinessAssignment,
 } from '../services/firestoreService';
 import { UserProfile, Business } from '../types';
 
@@ -42,49 +41,32 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// ─── helpers ───────────────────────────────────────────────────────────────
+function clearAuthCache() {
+  try {
+    localStorage.removeItem('menuestro_cached_profile');
+    localStorage.removeItem('menuestro_cached_business');
+    localStorage.removeItem('menuestro_cached_is_admin');
+  } catch {}
+}
+
+/** Validate that a cached business actually belongs to the given user. */
+function isCachedBizValidForUser(cached: Business | null, uid: string, emailLower: string): boolean {
+  if (!cached) return false;
+  if (cached.ownerId === uid) return true;
+  if (emailLower && cached.ownerEmail?.toLowerCase().trim() === emailLower) return true;
+  if (emailLower && cached.managerEmail?.toLowerCase().trim() === emailLower) return true;
+  return false;
+}
+
+// ─── Provider ──────────────────────────────────────────────────────────────
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(() => auth.currentUser);
-  const [profile, setProfile] = useState<UserProfile | null>(() => {
-    try {
-      const cached = localStorage.getItem('menuestro_cached_profile');
-      if (cached && auth.currentUser) {
-        const parsed = JSON.parse(cached);
-        if (parsed?.userId === auth.currentUser.uid) {
-          return parsed;
-        }
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  });
-  const [business, setBusinessState] = useState<Business | null>(() => {
-    try {
-      const cached = localStorage.getItem('menuestro_cached_business');
-      if (cached && auth.currentUser) {
-        const parsed = JSON.parse(cached);
-        const emailLower = auth.currentUser.email?.toLowerCase().trim() || '';
-        const isOwner = parsed?.ownerId === auth.currentUser.uid;
-        const isEmailMatch = emailLower && (parsed?.ownerEmail?.toLowerCase().trim() === emailLower || parsed?.managerEmail?.toLowerCase().trim() === emailLower);
-        if (isOwner || isEmailMatch) {
-          return parsed;
-        }
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  });
-  const [isSuperAdmin, setIsSuperAdmin] = useState<boolean>(() => {
-    try {
-      if (auth.currentUser) {
-        return localStorage.getItem('menuestro_cached_is_admin') === 'true';
-      }
-      return false;
-    } catch {
-      return false;
-    }
-  });
+  // Always start with null — never trust localStorage on initial render.
+  // The correct values are loaded via onAuthStateChanged → loadUserData.
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [business, setBusinessState] = useState<Business | null>(null);
+  const [isSuperAdmin, setIsSuperAdmin] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
 
   const setBusiness = (biz: Business | null) => {
@@ -98,50 +80,80 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {}
   };
 
+  /**
+   * Fully resolves the authenticated user's profile and business from Firestore.
+   * This is the single authoritative source of truth — never uses localStorage
+   * as a substitute for Firestore data.
+   */
   const loadUserData = async (currentUser: User) => {
+    const emailLower = currentUser.email?.toLowerCase().trim() || '';
+
     try {
-      const emailLower = currentUser.email?.toLowerCase() || '';
+      // ── A. Super-admin check ───────────────────────────────────────────
       const isSuper = await checkIsSuperAdmin(currentUser.uid, emailLower);
       setIsSuperAdmin(isSuper);
-      try {
-        localStorage.setItem('menuestro_cached_is_admin', isSuper ? 'true' : 'false');
-      } catch {}
+      try { localStorage.setItem('menuestro_cached_is_admin', isSuper ? 'true' : 'false'); } catch {}
 
+      // ── B. Load or create the user profile ────────────────────────────
       let userProf = await getUserProfile(currentUser.uid);
       if (!userProf) {
-        // Create initial user profile
         userProf = {
           userId: currentUser.uid,
           businessId: '',
-          name: currentUser.displayName || currentUser.email?.split('@')[0] || (isSuper ? 'Super Admin' : 'Restaurant Owner'),
+          name: currentUser.displayName || emailLower.split('@')[0] || (isSuper ? 'Super Admin' : 'Restaurant Owner'),
           email: currentUser.email || '',
           role: isSuper ? 'super_admin' : 'owner',
           createdAt: new Date().toISOString(),
         };
         await createUserProfile(userProf);
       } else {
-        // Enforce strict role
+        // Enforce correct role (never allow self-escalation to super_admin)
         const targetRole = isSuper ? 'super_admin' : (userProf.role === 'super_admin' ? 'owner' : userProf.role);
         if (userProf.role !== targetRole) {
-          userProf.role = targetRole;
+          userProf = { ...userProf, role: targetRole };
           await updateUserProfile(currentUser.uid, { role: targetRole });
         }
       }
-      setProfile(userProf);
-      try {
-        localStorage.setItem('menuestro_cached_profile', JSON.stringify(userProf));
-      } catch {}
 
-      // 1. Try to load associated business by assigned businessId
+      setProfile(userProf);
+      try { localStorage.setItem('menuestro_cached_profile', JSON.stringify(userProf)); } catch {}
+
+      // ── C. Resolve the business ────────────────────────────────────────
+      // Priority order (highest confidence → lowest):
+      // 1. users/{uid}.businessId — profile-linked business
+      // 2. pendingAssignments/{email} — pre-login admin assignment
+      // 3. linkUserToBusinessIfEmailMatches — email-keyed lookup against businesses collection
+      // 4. getBusinessByOwner — ownerId match (user created via onboarding)
+      // After each step, we validate the found business actually matches this user.
+
+      // Step 1: profile-linked businessId
       if (userProf.businessId) {
         const biz = await getBusiness(userProf.businessId);
-        if (biz) {
+        if (biz && isCachedBizValidForUser(biz, currentUser.uid, emailLower)) {
           setBusiness(biz);
+          return;
+        }
+        // businessId is stale — clear it
+        await updateUserProfile(currentUser.uid, { businessId: '' }).catch(() => {});
+        userProf = { ...userProf, businessId: '' };
+      }
+
+      // Step 2: pendingAssignments/{email} — set by Super Admin when creating a restaurant
+      if (emailLower) {
+        const assignedBiz = await resolvePendingBusinessAssignment(emailLower, currentUser.uid, currentUser.displayName || '');
+        if (assignedBiz) {
+          userProf = { ...userProf, businessId: assignedBiz.id };
+          setProfile({ ...userProf, businessId: assignedBiz.id });
+          setBusiness(assignedBiz);
+          await updateUserProfile(currentUser.uid, { businessId: assignedBiz.id }).catch(() => {});
+          try {
+            localStorage.setItem('menuestro_cached_profile', JSON.stringify({ ...userProf, businessId: assignedBiz.id }));
+          } catch {}
           return;
         }
       }
 
-      // 2. Check if this user's email matches a restaurant's ownerEmail or managerEmail
+      // Step 3: email-keyed lookup against businesses.ownerEmail / managerEmail
       if (currentUser.email) {
         const matchedBiz = await linkUserToBusinessIfEmailMatches(
           currentUser.uid,
@@ -149,103 +161,73 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           currentUser.displayName || ''
         );
         if (matchedBiz) {
-          userProf.businessId = matchedBiz.id;
+          userProf = { ...userProf, businessId: matchedBiz.id };
           setProfile({ ...userProf, businessId: matchedBiz.id });
           setBusiness(matchedBiz);
           try {
             localStorage.setItem('menuestro_cached_profile', JSON.stringify({ ...userProf, businessId: matchedBiz.id }));
-            localStorage.setItem('menuestro_cached_business', JSON.stringify(matchedBiz));
           } catch {}
           return;
         }
       }
 
-      // 3. Fallback: check by ownerId
+      // Step 4: ownerId match (restaurant created via self-onboarding flow)
       const ownedBiz = await getBusinessByOwner(currentUser.uid);
       if (ownedBiz) {
-        userProf.businessId = ownedBiz.id;
+        userProf = { ...userProf, businessId: ownedBiz.id };
         setProfile({ ...userProf, businessId: ownedBiz.id });
         setBusiness(ownedBiz);
+        await updateUserProfile(currentUser.uid, { businessId: ownedBiz.id }).catch(() => {});
         return;
       }
 
-      // 4. Fallback: check cached business ONLY IF it strictly belongs to this user
-      try {
-        const cachedBizJson = localStorage.getItem('menuestro_cached_business');
-        if (cachedBizJson) {
-          const cached = JSON.parse(cachedBizJson);
-          const isOwner = cached?.ownerId === currentUser.uid;
-          const isEmailMatch = emailLower && (cached?.ownerEmail?.toLowerCase() === emailLower || cached?.managerEmail?.toLowerCase() === emailLower);
-          const isAssigned = userProf.businessId && cached?.id === userProf.businessId;
-
-          if (cached?.id && (isOwner || isEmailMatch || isAssigned)) {
-            const biz = await getBusiness(cached.id);
-            if (biz) {
-              setBusiness(biz);
-              return;
-            }
-          }
-        }
-      } catch {}
-
-      // 5. If no business is associated, set business to null (user will be prompted to create shop)
+      // No business found — user will see OnboardingWizard
       setBusiness(null);
+
     } catch (err) {
-      console.error('Error loading user/business data:', err);
+      console.error('[AuthContext] loadUserData error:', err);
       setBusiness(null);
     }
   };
 
+  // ── onAuthStateChanged ─────────────────────────────────────────────────
   useEffect(() => {
-    // Safety fallback: ensure loading state never hangs
-    const safetyTimer = setTimeout(() => {
-      setLoading(false);
-    }, 1500);
-
     const unsubscribe = onAuthStateChanged(
       auth,
       async (currentUser) => {
-        clearTimeout(safetyTimer);
-        setUser(currentUser);
         if (currentUser) {
-          // Synchronously clear business if it doesn't belong to the newly active user
-          setBusinessState((prev) => {
-            if (!prev) return null;
-            const emailLower = currentUser.email?.toLowerCase().trim() || '';
-            const isOwner = prev.ownerId === currentUser.uid;
-            const isEmailMatch = emailLower && (prev.ownerEmail?.toLowerCase().trim() === emailLower || prev.managerEmail?.toLowerCase().trim() === emailLower);
-            return (isOwner || isEmailMatch) ? prev : null;
-          });
+          setUser(currentUser);
+          // Immediately clear any previous user's cached business from state.
+          // The correct business will be set by loadUserData below.
+          setBusinessState(null);
+          setProfile(null);
 
           try {
             await loadUserData(currentUser);
           } catch (e) {
-            console.warn('User data load fallback:', e);
+            console.warn('[AuthContext] loadUserData fallback:', e);
+            setBusiness(null);
           }
         } else {
+          // Signed out — clear everything
+          setUser(null);
           setProfile(null);
-          setBusiness(null);
+          setBusinessState(null);
           setIsSuperAdmin(false);
-          try {
-            localStorage.removeItem('menuestro_cached_profile');
-            localStorage.removeItem('menuestro_cached_business');
-            localStorage.removeItem('menuestro_cached_is_admin');
-          } catch {}
+          clearAuthCache();
         }
         setLoading(false);
       },
       (error) => {
-        console.warn('Auth state error:', error);
-        clearTimeout(safetyTimer);
+        console.warn('[AuthContext] auth state error:', error);
         setLoading(false);
       }
     );
 
-    return () => {
-      clearTimeout(safetyTimer);
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, []);
+
+  // ── Public API ─────────────────────────────────────────────────────────
 
   const refreshBusiness = async () => {
     if (!user) return;
@@ -253,37 +235,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signIn = async (email: string, pass: string) => {
-    setBusiness(null);
+    // Clear everything before signing in so stale state never leaks
+    setUser(null);
+    setProfile(null);
+    setBusinessState(null);
+    clearAuthCache();
+
     const cred = await signInWithEmailAndPassword(auth, email, pass);
     await loadUserData(cred.user);
   };
 
   const signUp = async (email: string, pass: string, name: string) => {
-    setBusiness(null);
+    setUser(null);
+    setProfile(null);
+    setBusinessState(null);
+    clearAuthCache();
+
     const cred = await createUserWithEmailAndPassword(auth, email, pass);
     if (name) {
       await updateProfile(cred.user, { displayName: name });
     }
-    const isSuper = cred.user.email === 'managebox02@gmail.com';
-    const userProf: UserProfile = {
-      userId: cred.user.uid,
-      businessId: '',
-      name: name || cred.user.email?.split('@')[0] || 'User',
-      email: cred.user.email || '',
-      role: isSuper ? 'super_admin' : 'owner',
-      createdAt: new Date().toISOString(),
-    };
-    await createUserProfile(userProf);
-    if (isSuper) {
-      await grantSuperAdminRole(cred.user.uid, cred.user.email || '', userProf.name);
-    }
-    setProfile(userProf);
-    setIsSuperAdmin(isSuper);
+    // Let loadUserData handle profile creation and business resolution
     await loadUserData(cred.user);
   };
 
   const signInWithGoogle = async () => {
-    setBusiness(null);
+    setUser(null);
+    setProfile(null);
+    setBusinessState(null);
+    clearAuthCache();
+
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
     const cred = await signInWithPopup(auth, provider);
@@ -298,13 +279,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await signOut(auth);
     setUser(null);
     setProfile(null);
-    setBusiness(null);
+    setBusinessState(null);
     setIsSuperAdmin(false);
-    try {
-      localStorage.removeItem('menuestro_cached_profile');
-      localStorage.removeItem('menuestro_cached_business');
-      localStorage.removeItem('menuestro_cached_is_admin');
-    } catch {}
+    clearAuthCache();
   };
 
   return (

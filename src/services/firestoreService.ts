@@ -88,6 +88,103 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
   }
 }
 
+// ==========================================
+// 1b. PENDING BUSINESS ASSIGNMENTS (pre-login email → businessId mapping)
+// Written by Super Admin when creating/updating a restaurant with a manager email.
+// Resolved at first login to reliably link the user to their business.
+// ==========================================
+
+/**
+ * Stores a pending assignment: email → businessId
+ * Called by Super Admin when creating or updating a restaurant with an owner/manager email.
+ * The document key is the normalized email address.
+ */
+export async function setPendingBusinessAssignment(
+  email: string,
+  businessId: string,
+  businessName: string
+): Promise<void> {
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail || !businessId) return;
+  try {
+    const ref = doc(db, `pendingAssignments/${cleanEmail}`);
+    await setDoc(ref, {
+      email: cleanEmail,
+      businessId,
+      businessName,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }, { merge: true });
+  } catch (err) {
+    console.warn('setPendingBusinessAssignment error:', err);
+  }
+}
+
+/**
+ * Resolves a pending assignment for a newly logged-in user.
+ * - Reads /pendingAssignments/{email}
+ * - Verifies the business exists and email still matches
+ * - Updates users/{uid} with businessId and registers membership
+ * - Does NOT delete the pending record (safe for re-login)
+ * Returns the matched Business or null.
+ */
+export async function resolvePendingBusinessAssignment(
+  email: string,
+  userId: string,
+  userName?: string
+): Promise<Business | null> {
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail || !userId) return null;
+  try {
+    const ref = doc(db, `pendingAssignments/${cleanEmail}`);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return null;
+
+    const data = snap.data();
+    const businessId: string = data?.businessId;
+    if (!businessId) return null;
+
+    // Verify the business still exists and the email still matches
+    const biz = await getBusiness(businessId);
+    if (!biz) return null;
+
+    const bizEmail = biz.ownerEmail?.toLowerCase().trim() || '';
+    const bizManagerEmail = biz.managerEmail?.toLowerCase().trim() || '';
+    const emailMatchesBusiness = bizEmail === cleanEmail || bizManagerEmail === cleanEmail;
+    if (!emailMatchesBusiness) {
+      // Stale or reassigned — ignore
+      return null;
+    }
+
+    // Link the user profile to this business
+    const userRef = doc(db, `users/${userId}`);
+    await setDoc(userRef, {
+      businessId,
+      role: 'owner',
+      email: cleanEmail,
+      name: userName || cleanEmail.split('@')[0],
+      updatedAt: new Date().toISOString(),
+    }, { merge: true }).catch(() => {});
+
+    // Register membership
+    const memberRef = doc(db, `businesses/${businessId}/members/${userId}`);
+    await setDoc(memberRef, {
+      userId,
+      businessId,
+      email: cleanEmail,
+      name: userName || cleanEmail.split('@')[0],
+      role: 'owner',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }, { merge: true }).catch(() => {});
+
+    return biz;
+  } catch (err) {
+    console.warn('resolvePendingBusinessAssignment error:', err);
+    return null;
+  }
+}
+
 export const SUPER_ADMIN_EMAILS = [
   'managebox02@gmail.com',
   'try.avishekumar@gmail.com',
@@ -614,17 +711,25 @@ export async function createBusiness(
       }).catch((e) => console.warn('QR code set notice:', e));
     }
 
-    // 7. If owner email is known, link any existing registered user
+    // 7. Write pendingAssignment for pre-login email lookup (NEW)
+    if (cleanOwnerEmail) {
+      await setPendingBusinessAssignment(cleanOwnerEmail, bizId, business.name).catch(() => {});
+    }
+    if (cleanManagerEmail && cleanManagerEmail !== cleanOwnerEmail) {
+      await setPendingBusinessAssignment(cleanManagerEmail, bizId, business.name).catch(() => {});
+    }
+
+    // 8. If owner email is known, also link any ALREADY registered user (existing account)
     if (cleanOwnerEmail) {
       try {
         const uQ = query(collection(db, 'users'), where('email', '==', cleanOwnerEmail), limit(1));
         const uSnap = await getDocs(uQ);
         if (!uSnap.empty) {
           const matchedUserDoc = uSnap.docs[0];
-          await updateDoc(doc(db, `users/${matchedUserDoc.id}`), {
+          await setDoc(doc(db, `users/${matchedUserDoc.id}`), {
             businessId: bizId,
             role: 'owner',
-          });
+          }, { merge: true });
           // Also set member with the real UID
           await setDoc(doc(db, `businesses/${bizId}/members/${matchedUserDoc.id}`), {
             userId: matchedUserDoc.id,
@@ -674,8 +779,23 @@ export async function updateBusiness(
     if (updates.slug) {
       cleanUpdates.slug = normalizeSlug(updates.slug);
     }
+    if (updates.ownerEmail) {
+      cleanUpdates.ownerEmail = updates.ownerEmail.trim().toLowerCase();
+    }
+    if (updates.managerEmail) {
+      cleanUpdates.managerEmail = updates.managerEmail.trim().toLowerCase();
+    }
 
     await updateDoc(docRef, cleanUpdates);
+
+    // Update pending assignments when email fields change
+    const bizName = updates.name || businessId;
+    if (cleanUpdates.ownerEmail) {
+      await setPendingBusinessAssignment(cleanUpdates.ownerEmail, businessId, bizName).catch(() => {});
+    }
+    if (cleanUpdates.managerEmail && cleanUpdates.managerEmail !== cleanUpdates.ownerEmail) {
+      await setPendingBusinessAssignment(cleanUpdates.managerEmail, businessId, bizName).catch(() => {});
+    }
 
     if (cleanUpdates.slug && updates.ownerId) {
       await claimBusinessSlug(businessId, updates.ownerId, cleanUpdates.slug);
@@ -698,6 +818,7 @@ export async function updateBusiness(
     handleFirestoreError(error, OperationType.UPDATE, path);
   }
 }
+
 
 export async function updateBusinessStatus(
   businessId: string,
