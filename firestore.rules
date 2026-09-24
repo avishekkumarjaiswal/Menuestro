@@ -12,7 +12,7 @@ service cloud.firestore {
     // 2. Authoritative verified admin record in /admins/{uid}
     function isSuperAdmin() {
       return isSignedIn() && (
-        request.auth.token.email in ['managebox02@gmail.com', 'try.avishekumar@gmail.com'] ||
+        request.auth.token.email in ['managebox02@gmail.com'] ||
         (exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
          get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'super_admin' &&
          get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.active == true)
@@ -89,6 +89,25 @@ service cloud.firestore {
       );
       // Any authenticated user can write (needed for the linkUser flow that updates businessId)
       allow write: if isSignedIn();
+    }
+
+    // 1c. Restaurant Applications (Self-service onboarding)
+    // - Authenticated users can submit a pending_approval application for themselves
+    // - Applicants can read their own application
+    // - Super Admins can read, approve, reject, and manage all applications
+    match /restaurantApplications/{appId} {
+      allow read: if isSignedIn() && (
+        isSuperAdmin() ||
+        resource.data.applicantUid == request.auth.uid ||
+        (request.auth.token.email != null && resource.data.applicantEmail == request.auth.token.email)
+      );
+      allow create: if isSignedIn() && (
+        isSuperAdmin() ||
+        (request.resource.data.applicantUid == request.auth.uid &&
+         request.resource.data.status == 'pending_approval')
+      );
+      allow update: if isSuperAdmin();
+      allow delete: if isSuperAdmin();
     }
 
     // 2. User profiles

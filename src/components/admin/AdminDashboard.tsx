@@ -104,8 +104,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     );
   }
 
-  // If not authenticated or not managebox02@gmail.com, show the Super Admin security gate
-  if (!user || user.email?.toLowerCase() !== 'managebox02@gmail.com') {
+  // If not authenticated or not a Super Admin, show the Super Admin security gate
+  if (!user || !isSuperAdmin) {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl relative overflow-hidden">
@@ -117,7 +117,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
             <h2 className="text-xl font-black text-white">Menuestro Super Admin</h2>
             <p className="text-xs text-slate-400 mt-1">
-              Platform administration is exclusively restricted to managebox02@gmail.com
+              Platform administration portal
             </p>
           </div>
 
@@ -128,14 +128,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           )}
 
-          {user && user.email?.toLowerCase() !== 'managebox02@gmail.com' && (
+          {user && !isSuperAdmin && (
             <div className="mb-5 p-4 rounded-2xl bg-amber-950/60 border border-amber-800/80 text-amber-200 text-xs space-y-3">
               <div className="flex items-start gap-2.5">
                 <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
                 <div>
                   <p className="font-bold text-white">Logged in as {user.email}</p>
                   <p className="text-amber-300/80 text-[11px] mt-0.5">
-                    Super Admin is reserved for <code className="text-emerald-400 font-mono">managebox02@gmail.com</code>.
+                    This account is not authorized for Super Admin access.
                   </p>
                 </div>
               </div>
@@ -164,7 +164,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="managebox02@gmail.com"
+                  placeholder="admin@menuestro.com"
                   className="w-full pl-9 pr-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
                 />
               </div>
@@ -212,7 +212,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             disabled={authLoading}
             className="w-full py-2.5 bg-slate-950 hover:bg-slate-800 text-slate-200 border border-slate-800 font-semibold text-xs rounded-xl flex items-center justify-center gap-2 transition"
           >
-            <span>Sign In with Google (managebox02@gmail.com)</span>
+            <span>Sign In with Google</span>
           </button>
 
           {onNavigateHome && (

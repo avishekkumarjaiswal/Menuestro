@@ -10,10 +10,11 @@ import {
   Settings,
   LogOut,
   Plus,
-  ShieldCheck,
-  Menu as MenuIcon,
-  X,
   Leaf,
+  MoreHorizontal,
+  X,
+  ChevronRight,
+  ShieldCheck,
 } from 'lucide-react';
 
 export type AdminTab =
@@ -42,10 +43,10 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   children,
 }) => {
   const { user, profile, logout } = useAuth();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isMoreSheetOpen, setIsMoreSheetOpen] = useState(false);
   const mainAdminRef = useRef<HTMLElement>(null);
 
-  const navItems: { id: AdminTab; label: string; icon: React.FC<{ className?: string }>; badge?: string }[] = [
+  const primaryNavItems: { id: AdminTab; label: string; icon: React.FC<{ className?: string }> }[] = [
     { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
     { id: 'restaurants', label: 'Restaurants', icon: Store },
     { id: 'content', label: 'Content Studio', icon: Sparkles },
@@ -55,9 +56,17 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
+  // Mobile Bottom Navigation Tabs
+  const mobileBottomNav: { id: AdminTab | 'more'; label: string; icon: React.FC<{ className?: string }> }[] = [
+    { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
+    { id: 'restaurants', label: 'Restaurants', icon: Store },
+    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+    { id: 'more', label: 'More', icon: MoreHorizontal },
+  ];
+
   const handleNavClick = (tab: AdminTab) => {
     onSelectTab(tab);
-    setMobileMenuOpen(false);
+    setIsMoreSheetOpen(false);
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
@@ -77,18 +86,18 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col md:flex-row antialiased font-sans">
-      {/* Mobile Header */}
-      <header className="md:hidden flex items-center justify-between px-4 py-3 bg-[#0F172A] border-b border-slate-800 sticky top-0 z-40">
+      {/* Mobile Fixed Top App Bar */}
+      <header className="md:hidden fixed top-0 left-0 right-0 h-14 bg-[#0F172A] border-b border-slate-800 px-4 flex items-center justify-between z-30 shadow-xs">
         <div className="flex items-center space-x-2.5">
-          <div className="w-8 h-8 rounded-[8px] bg-[#078A55]/20 text-[#078A55] flex items-center justify-center">
-            <Leaf className="w-4 h-4 fill-[#078A55] text-[#078A55]" />
+          <div className="w-7 h-7 rounded-lg bg-[#078A55]/20 text-[#078A55] flex items-center justify-center">
+            <Leaf className="w-3.5 h-3.5 fill-[#078A55] text-[#078A55]" />
           </div>
-          <div>
-            <span className="font-bold text-sm text-white block leading-tight">
+          <div className="min-w-0">
+            <span className="font-bold text-sm text-white block leading-tight truncate">
               Menuestro
             </span>
-            <span className="text-[11px] text-slate-400 font-medium">
-              Platform Administration
+            <span className="text-[10px] text-slate-400 font-medium block -mt-0.5">
+              Super Admin
             </span>
           </div>
         </div>
@@ -97,35 +106,26 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           {onOpenCreateRestaurantModal && (
             <button
               onClick={onOpenCreateRestaurantModal}
-              className="p-1.5 bg-[#078A55] hover:bg-[#067347] text-white rounded-lg transition text-xs font-semibold flex items-center gap-1 px-2.5 shadow-sm"
+              className="h-8 px-2.5 bg-[#078A55] hover:bg-[#067347] text-white rounded-lg transition text-xs font-semibold flex items-center gap-1 shadow-xs active:scale-95 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>New</span>
             </button>
           )}
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
-            aria-label="Toggle navigation"
-          >
-            {mobileMenuOpen ? <X className="w-5 h-5" /> : <MenuIcon className="w-5 h-5" />}
-          </button>
         </div>
       </header>
 
-      {/* Sidebar Desktop */}
-      <aside className="hidden md:flex flex-col w-64 bg-[#0F172A] border-r border-slate-800/80 flex-shrink-0 min-h-screen sticky top-0 h-screen text-slate-300">
+      {/* Desktop Persistent Left Sidebar */}
+      <aside className="hidden md:flex flex-col w-64 bg-[#0F172A] border-r border-slate-800/80 shrink-0 h-screen sticky top-0 text-slate-300 select-none">
         {/* Brand Header */}
-        <div className="p-5 border-b border-slate-800/60 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 rounded-[8px] bg-[#078A55]/20 flex items-center justify-center text-[#078A55]">
+        <div className="h-16 px-5 border-b border-slate-800/80 flex items-center justify-between">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-8 h-8 rounded-lg bg-[#078A55]/20 flex items-center justify-center text-[#078A55]">
               <Leaf className="w-4 h-4 fill-[#078A55] text-[#078A55]" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-base tracking-tight text-white">Menuestro</span>
-              </div>
-              <p className="text-[11px] text-slate-400 font-medium">
+              <span className="font-bold text-sm tracking-tight text-white block">Menuestro</span>
+              <p className="text-[10px] text-slate-400 font-medium -mt-0.5">
                 Platform Administration
               </p>
             </div>
@@ -134,24 +134,24 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
         {/* Quick Action Button */}
         {onOpenCreateRestaurantModal && (
-          <div className="px-4 pt-4 pb-2">
+          <div className="p-3">
             <button
               onClick={onOpenCreateRestaurantModal}
-              className="w-full py-2.5 px-3 bg-[#078A55] hover:bg-[#067347] text-white font-semibold text-xs rounded-lg shadow-sm flex items-center justify-center gap-2 transition"
+              className="w-full h-9 px-3 bg-[#078A55] hover:bg-[#067347] text-white font-medium text-xs rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition active:scale-[0.98] cursor-pointer"
             >
-              <Plus className="w-4 h-4" />
-              <span>New Restaurant</span>
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Restaurant</span>
             </button>
           </div>
         )}
 
         {/* Navigation Items */}
-        <nav className="flex-1 px-3 py-3 space-y-1 overflow-y-auto">
-          <div className="px-3 pb-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-            Management
+        <nav className="flex-1 px-3 py-2 space-y-0.5 overflow-y-auto">
+          <div className="px-2.5 pb-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+            Workspace
           </div>
 
-          {navItems.map((item) => {
+          {primaryNavItems.map((item) => {
             const Icon = item.icon;
             const isActive =
               currentTab === item.id || (item.id === 'restaurants' && currentTab === 'restaurant-detail');
@@ -160,42 +160,35 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               <button
                 key={item.id}
                 onClick={() => handleNavClick(item.id)}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium transition ${
+                className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-lg text-xs font-medium transition cursor-pointer ${
                   isActive
                     ? 'bg-slate-800 text-white font-semibold shadow-xs'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850/60'
                 }`}
               >
-                <div className="flex items-center space-x-3">
-                  <Icon
-                    className={`w-4 h-4 transition-colors ${
-                      isActive ? 'text-[#078A55]' : 'text-slate-400'
-                    }`}
-                  />
-                  <span>{item.label}</span>
-                </div>
-                {item.badge && (
-                  <span className="text-[10px] font-medium text-slate-400">
-                    {item.badge}
-                  </span>
-                )}
+                <Icon
+                  className={`w-4 h-4 transition-colors ${
+                    isActive ? 'text-[#078A55]' : 'text-slate-400'
+                  }`}
+                />
+                <span className="truncate">{item.label}</span>
               </button>
             );
           })}
         </nav>
 
-        {/* User Identity & Logout */}
+        {/* Bottom User & Logout Card */}
         <div className="p-3 border-t border-slate-800/80 bg-slate-950/40">
           <div className="flex items-center justify-between px-2.5 py-2 rounded-lg bg-slate-900/80 border border-slate-800/60">
-            <div className="flex items-center space-x-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-full bg-slate-800 text-slate-200 font-semibold text-xs flex items-center justify-center flex-shrink-0 border border-slate-700">
+            <div className="flex items-center space-x-2 min-w-0">
+              <div className="w-7 h-7 rounded-md bg-slate-800 text-slate-200 font-semibold text-xs flex items-center justify-center shrink-0 border border-slate-700">
                 {profile?.name ? profile.name.charAt(0).toUpperCase() : 'A'}
               </div>
               <div className="min-w-0 text-left">
                 <p className="text-xs font-medium text-slate-200 truncate">
                   {profile?.name || user?.displayName || 'Administrator'}
                 </p>
-                <p className="text-[11px] text-slate-400 truncate">
+                <p className="text-[10px] text-slate-400 truncate">
                   {user?.email || 'admin@menuestro.com'}
                 </p>
               </div>
@@ -204,100 +197,137 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             <button
               onClick={() => logout()}
               title="Sign Out"
-              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition flex-shrink-0"
+              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-md transition shrink-0 cursor-pointer"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
       </aside>
 
-      {/* Mobile Drawer */}
-      {mobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex flex-col p-4 overflow-y-auto animate-in fade-in duration-150">
-          <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-            <div className="flex items-center space-x-2.5">
-              <div className="w-8 h-8 rounded-[8px] bg-[#078A55]/20 text-[#078A55] flex items-center justify-center">
-                <Leaf className="w-4 h-4 fill-[#078A55] text-[#078A55]" />
-              </div>
-              <div>
-                <span className="font-bold text-white text-base block leading-tight">Menuestro</span>
-                <span className="text-[11px] text-slate-400">Platform Administration</span>
-              </div>
-            </div>
+      {/* Main Content Workspace Area */}
+      <main
+        ref={mainAdminRef}
+        className="flex-1 min-h-screen bg-[#F8FAFC] pt-14 md:pt-0 pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] md:pb-8 overflow-x-hidden"
+      >
+        {children}
+      </main>
+
+      {/* Mobile Fixed Bottom Navigation */}
+      <nav
+        aria-label="Mobile Navigation"
+        className="md:hidden fixed bottom-0 left-0 right-0 bg-[#0F172A] border-t border-slate-800 px-2 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom,0.5rem))] flex items-center justify-around z-40 shadow-lg"
+      >
+        {mobileBottomNav.map((item) => {
+          const Icon = item.icon;
+          const isActive =
+            item.id === 'more'
+              ? isMoreSheetOpen ||
+                ['content', 'qr', 'activity', 'settings'].includes(currentTab)
+              : currentTab === item.id ||
+                (item.id === 'restaurants' && currentTab === 'restaurant-detail');
+
+          return (
             <button
-              onClick={() => setMobileMenuOpen(false)}
-              className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
-              aria-label="Close menu"
+              key={item.id}
+              onClick={() => {
+                if (item.id === 'more') {
+                  setIsMoreSheetOpen(true);
+                } else {
+                  handleNavClick(item.id as AdminTab);
+                }
+              }}
+              className={`flex flex-col items-center justify-center py-1 px-3 min-w-[64px] min-h-[44px] rounded-lg text-[10px] font-medium transition-colors cursor-pointer active:scale-95 ${
+                isActive ? 'text-emerald-400 font-semibold' : 'text-slate-400'
+              }`}
             >
-              <X className="w-6 h-6" />
+              <Icon className={`w-5 h-5 mb-0.5 ${isActive ? 'text-emerald-400' : 'text-slate-400'}`} />
+              <span>{item.label}</span>
             </button>
-          </div>
+          );
+        })}
+      </nav>
 
-          <div className="py-4 space-y-4">
-            {onOpenCreateRestaurantModal && (
+      {/* Mobile "More" Native Bottom Sheet */}
+      {isMoreSheetOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="md:hidden fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex flex-col justify-end animate-in fade-in duration-150"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsMoreSheetOpen(false);
+          }}
+        >
+          <div className="bg-[#0F172A] border-t border-slate-800 rounded-t-2xl p-4 space-y-3 animate-in slide-in-from-bottom duration-200 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))]">
+            {/* Drag Handle */}
+            <div className="flex justify-center pb-1">
+              <div className="w-10 h-1 bg-slate-700 rounded-full" />
+            </div>
+
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+              <div>
+                <h3 className="text-sm font-bold text-white">Platform Administration</h3>
+                <p className="text-[11px] text-slate-400 font-mono truncate max-w-[220px]">
+                  {user?.email}
+                </p>
+              </div>
               <button
-                onClick={() => {
-                  onOpenCreateRestaurantModal();
-                  setMobileMenuOpen(false);
-                }}
-                className="w-full py-2.5 px-4 bg-[#078A55] hover:bg-[#067347] text-white font-semibold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs transition"
+                onClick={() => setIsMoreSheetOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 cursor-pointer"
               >
-                <Plus className="w-4 h-4" />
-                <span>New Restaurant</span>
+                <X className="w-4 h-4" />
               </button>
-            )}
+            </div>
 
-            <nav className="space-y-1 pt-1">
-              {navItems.map((item) => {
+            {/* Additional Navigation Items in Sheet */}
+            <div className="grid grid-cols-1 gap-1">
+              {[
+                { id: 'content', label: 'Content Studio', icon: Sparkles, desc: 'Phrases & templates' },
+                { id: 'qr', label: 'QR Management', icon: QrCode, desc: 'Standees & printable codes' },
+                { id: 'activity', label: 'Audit Logs', icon: History, desc: 'Platform activity history' },
+                { id: 'settings', label: 'Platform Settings', icon: Settings, desc: 'Credentials & system state' },
+              ].map((item) => {
                 const Icon = item.icon;
                 const isActive = currentTab === item.id;
                 return (
                   <button
                     key={item.id}
-                    onClick={() => handleNavClick(item.id)}
-                    className={`w-full flex items-center space-x-3 px-3.5 py-3 rounded-xl text-sm font-medium transition ${
+                    onClick={() => handleNavClick(item.id as AdminTab)}
+                    className={`w-full flex items-center justify-between p-2.5 rounded-xl text-xs font-medium transition cursor-pointer min-h-[44px] ${
                       isActive
-                        ? 'bg-slate-800 text-white font-semibold shadow-xs'
-                        : 'text-slate-400 hover:text-white hover:bg-slate-900/60'
+                        ? 'bg-slate-800 text-white font-semibold'
+                        : 'text-slate-300 hover:bg-slate-850 hover:text-white'
                     }`}
                   >
-                    <Icon className={`w-4 h-4 ${isActive ? 'text-[#078A55]' : 'text-slate-400'}`} />
-                    <span>{item.label}</span>
+                    <div className="flex items-center space-x-3">
+                      <Icon className={`w-4 h-4 ${isActive ? 'text-emerald-400' : 'text-slate-400'}`} />
+                      <div className="text-left">
+                        <p className="font-semibold text-slate-200">{item.label}</p>
+                        <p className="text-[10px] text-slate-400">{item.desc}</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-500" />
                   </button>
                 );
               })}
-            </nav>
-          </div>
-
-          <div className="mt-auto pt-4 border-t border-slate-800/80 space-y-3">
-            <div className="px-2 py-1.5 flex items-center justify-between text-xs text-slate-400">
-              <span className="truncate max-w-[200px] text-slate-300 font-medium">
-                {user?.email || 'admin@menuestro.com'}
-              </span>
-              <span className="text-[10px] uppercase font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/40 px-2 py-0.5 rounded">
-                Super Admin
-              </span>
             </div>
 
-            <button
-              onClick={() => logout()}
-              className="w-full flex items-center justify-center space-x-2 py-2.5 bg-slate-900 hover:bg-rose-950/30 text-slate-400 hover:text-rose-400 border border-slate-800 rounded-xl text-xs font-semibold transition"
-            >
-              <LogOut className="w-4 h-4" />
-              <span>Sign Out</span>
-            </button>
+            {/* Sign Out Button */}
+            <div className="pt-2 border-t border-slate-800">
+              <button
+                onClick={() => {
+                  setIsMoreSheetOpen(false);
+                  logout();
+                }}
+                className="w-full flex items-center justify-center gap-2 py-2.5 bg-rose-950/30 hover:bg-rose-950/50 text-rose-300 border border-rose-900/40 rounded-xl text-xs font-semibold transition cursor-pointer min-h-[44px]"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Sign Out</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
-
-      {/* Main Content View Area */}
-      <main
-        ref={mainAdminRef}
-        className="flex-1 overflow-y-auto min-h-screen bg-[#F8FAFC]"
-      >
-        {children}
-      </main>
     </div>
   );
 };

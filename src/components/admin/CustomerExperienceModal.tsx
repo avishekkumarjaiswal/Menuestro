@@ -25,60 +25,60 @@ export const CustomerExperienceModal: React.FC<CustomerExperienceModalProps> = (
   const fullUrl = `${window.location.origin}${targetPath}`;
 
   const deviceStyles = {
-    mobile: 'w-[375px] h-[720px] rounded-[38px] border-[10px] border-slate-900 shadow-2xl',
-    tablet: 'w-[640px] h-[780px] rounded-[28px] border-[10px] border-slate-900 shadow-2xl',
-    desktop: 'w-full max-w-4xl h-[780px] rounded-2xl border-4 border-slate-900 shadow-2xl',
+    mobile: 'w-[360px] h-[700px] rounded-[32px] border-[8px] border-slate-900 shadow-2xl',
+    tablet: 'w-[640px] h-[760px] rounded-[24px] border-[8px] border-slate-900 shadow-2xl',
+    desktop: 'w-full max-w-4xl h-[760px] rounded-xl border-4 border-slate-900 shadow-2xl',
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex flex-col items-center justify-center p-2 md:p-4">
+    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex flex-col items-center justify-center p-2 sm:p-4">
       {/* Top Controller Bar */}
-      <div className="w-full max-w-4xl bg-slate-900 border border-slate-800 rounded-2xl p-3 mb-3 flex items-center justify-between shadow-xl">
+      <div className="w-full max-w-4xl bg-slate-900 border border-slate-800 rounded-xl p-2.5 mb-3 flex flex-wrap items-center justify-between shadow-xl gap-2">
         <div className="flex items-center space-x-2">
-          <span className="text-xs font-bold text-white px-2.5 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg">
-            Live Customer Simulator
+          <span className="text-[11px] font-semibold text-emerald-400 px-2.5 py-0.5 bg-emerald-950 border border-emerald-800 rounded-md">
+            Customer Simulator
           </span>
-          <span className="text-xs font-mono text-slate-400 truncate max-w-[200px] md:max-w-xs">
+          <span className="text-xs font-mono text-slate-400 truncate max-w-[160px] sm:max-w-xs">
             {targetPath}
           </span>
         </div>
 
         {/* Mode Selector */}
-        <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
+        <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs">
           <button
             onClick={() => setMode('menu')}
-            className={`px-3 py-1 rounded-lg font-bold transition ${
-              mode === 'menu' ? 'bg-emerald-500 text-white' : 'text-slate-400 hover:text-white'
+            className={`px-2.5 py-1 rounded-md text-xs font-medium transition ${
+              mode === 'menu' ? 'bg-[#078A55] text-white font-semibold' : 'text-slate-400 hover:text-white'
             }`}
           >
             Digital Menu
           </button>
           <button
             onClick={() => setMode('review')}
-            className={`px-3 py-1 rounded-lg font-bold transition ${
-              mode === 'review' ? 'bg-emerald-500 text-white' : 'text-slate-400 hover:text-white'
+            className={`px-2.5 py-1 rounded-md text-xs font-medium transition ${
+              mode === 'review' ? 'bg-[#078A55] text-white font-semibold' : 'text-slate-400 hover:text-white'
             }`}
           >
             Review Flow
           </button>
           <button
             onClick={() => setMode('combined')}
-            className={`px-3 py-1 rounded-lg font-bold transition ${
-              mode === 'combined' ? 'bg-emerald-500 text-white' : 'text-slate-400 hover:text-white'
+            className={`px-2.5 py-1 rounded-md text-xs font-medium transition ${
+              mode === 'combined' ? 'bg-[#078A55] text-white font-semibold' : 'text-slate-400 hover:text-white'
             }`}
           >
-            Standee Landing
+            Standee
           </button>
         </div>
 
         {/* Device Switcher & Controls */}
-        <div className="flex items-center space-x-1.5">
+        <div className="flex items-center space-x-1">
           <button
             onClick={() => setDevice('mobile')}
             className={`p-1.5 rounded-lg transition ${
               device === 'mobile' ? 'bg-slate-800 text-emerald-400' : 'text-slate-400 hover:text-white'
             }`}
-            title="Mobile (iPhone)"
+            title="Mobile"
           >
             <Smartphone className="w-4 h-4" />
           </button>
@@ -87,7 +87,7 @@ export const CustomerExperienceModal: React.FC<CustomerExperienceModalProps> = (
             className={`p-1.5 rounded-lg transition ${
               device === 'tablet' ? 'bg-slate-800 text-emerald-400' : 'text-slate-400 hover:text-white'
             }`}
-            title="Tablet (iPad)"
+            title="Tablet"
           >
             <Tablet className="w-4 h-4" />
           </button>
@@ -116,7 +116,7 @@ export const CustomerExperienceModal: React.FC<CustomerExperienceModalProps> = (
             target="_blank"
             rel="noreferrer"
             className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
-            title="Open in new window"
+            title="Open in new tab"
           >
             <ExternalLink className="w-4 h-4" />
           </a>
@@ -126,7 +126,7 @@ export const CustomerExperienceModal: React.FC<CustomerExperienceModalProps> = (
             className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800"
             title="Close Simulator"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -137,7 +137,7 @@ export const CustomerExperienceModal: React.FC<CustomerExperienceModalProps> = (
           className={`${deviceStyles[device]} bg-slate-900 overflow-hidden relative transition-all duration-300 flex flex-col`}
         >
           {device === 'mobile' && (
-            <div className="w-24 h-4 bg-slate-900 absolute top-0 left-1/2 -translate-x-1/2 rounded-b-xl z-20" />
+            <div className="w-20 h-3.5 bg-slate-900 absolute top-0 left-1/2 -translate-x-1/2 rounded-b-lg z-20" />
           )}
           <iframe
             key={key}

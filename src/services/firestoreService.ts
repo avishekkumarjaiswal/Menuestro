@@ -37,7 +37,9 @@ import {
   AdminActivityLog,
   ActivityEntityType,
   PlatformOverviewMetrics,
-  DashboardTimeFilter
+  DashboardTimeFilter,
+  RestaurantApplication,
+  RestaurantApplicationStatus,
 } from '../types';
 
 // ==========================================
@@ -185,14 +187,245 @@ export async function resolvePendingBusinessAssignment(
   }
 }
 
+// ==========================================
+// 1c. RESTAURANT APPLICATIONS (Self-service onboarding)
+// Users submit → pending_approval → Super Admin approves/rejects
+// ==========================================
+
+/**
+ * Submit a new restaurant application.
+ * Blocked if the applicant already has a pending or approved application.
+ * Returns the application document ID.
+ */
+export async function submitRestaurantApplication(
+  applicantUid: string,
+  applicantEmail: string,
+  applicantName: string,
+  fields: {
+    restaurantName: string;
+    address?: string;
+    phone?: string;
+    restaurantEmail?: string;
+    googleReviewUrl?: string;
+    logoUrl?: string;
+    coverImageUrl?: string;
+  }
+): Promise<string> {
+  const cleanEmail = applicantEmail.trim().toLowerCase();
+
+  // Guard: one active application per email
+  const existing = await getRestaurantApplicationByEmail(cleanEmail);
+  if (existing) {
+    if (existing.status === 'pending_approval') {
+      throw new Error('You already have a pending restaurant application. Please wait for admin review.');
+    }
+    if (existing.status === 'approved') {
+      throw new Error('Your restaurant application has already been approved.');
+    }
+    // Rejected → allow resubmit by overwriting
+  }
+
+  // Guard: email already active on a restaurant
+  const activeBiz = await getBusinessByEmail(cleanEmail);
+  if (activeBiz) {
+    throw new Error('This email is already assigned to an active restaurant.');
+  }
+
+  const ref = existing
+    ? doc(db, `restaurantApplications/${existing.id}`)
+    : doc(collection(db, 'restaurantApplications'));
+
+  const now = new Date().toISOString();
+  const data: Omit<RestaurantApplication, 'id'> = {
+    applicantEmail: cleanEmail,
+    applicantUid,
+    applicantName,
+    restaurantName: fields.restaurantName.trim(),
+    address: fields.address?.trim() || '',
+    phone: fields.phone?.trim() || '',
+    restaurantEmail: fields.restaurantEmail?.trim().toLowerCase() || '',
+    googleReviewUrl: fields.googleReviewUrl?.trim() || '',
+    logoUrl: fields.logoUrl || '',
+    coverImageUrl: fields.coverImageUrl || '',
+    status: 'pending_approval',
+    submittedAt: now,
+  };
+
+  await setDoc(ref, data, { merge: true });
+  return ref.id;
+}
+
+/** Get a restaurant application by the applicant's email (O(1) lookup by field). */
+export async function getRestaurantApplicationByEmail(
+  email: string
+): Promise<RestaurantApplication | null> {
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail) return null;
+  try {
+    const q = query(
+      collection(db, 'restaurantApplications'),
+      where('applicantEmail', '==', cleanEmail),
+      limit(1)
+    );
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    const d = snap.docs[0];
+    return { id: d.id, ...d.data() } as RestaurantApplication;
+  } catch (err) {
+    console.warn('getRestaurantApplicationByEmail error:', err);
+    return null;
+  }
+}
+
+/** Get a restaurant application by document ID. */
+export async function getRestaurantApplicationById(
+  applicationId: string
+): Promise<RestaurantApplication | null> {
+  try {
+    const snap = await getDoc(doc(db, `restaurantApplications/${applicationId}`));
+    if (!snap.exists()) return null;
+    return { id: snap.id, ...snap.data() } as RestaurantApplication;
+  } catch (err) {
+    console.warn('getRestaurantApplicationById error:', err);
+    return null;
+  }
+}
+
+/** Subscribe to all applications (Super Admin use). */
+export function subscribeAllRestaurantApplications(
+  onUpdate: (apps: RestaurantApplication[]) => void
+): () => void {
+  const q = query(
+    collection(db, 'restaurantApplications'),
+    orderBy('submittedAt', 'desc')
+  );
+  return onSnapshot(q, (snap) => {
+    onUpdate(snap.docs.map((d) => ({ id: d.id, ...d.data() } as RestaurantApplication)));
+  }, (err) => {
+    console.warn('subscribeAllRestaurantApplications error:', err);
+  });
+}
+
+/**
+ * Approve a restaurant application.
+ * Creates the full active business (calls createBusiness internally),
+ * writes pendingAssignments/{email}, links the user profile.
+ */
+export async function approveRestaurantApplication(
+  applicationId: string,
+  adminUser: { id: string; email: string; name: string }
+): Promise<string> {
+  const app = await getRestaurantApplicationById(applicationId);
+  if (!app) throw new Error('Application not found');
+  if (app.status === 'approved') throw new Error('Application already approved');
+
+  const now = new Date().toISOString();
+
+  // Build slug from restaurant name
+  const rawSlug = app.restaurantName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+  const uniqueSuffix = Date.now().toString(36).slice(-4);
+  const slug = `${rawSlug}-${uniqueSuffix}`;
+
+  // Create the active business
+  const bizId = await createBusiness(
+    {
+      ownerId: app.applicantUid,
+      ownerEmail: app.applicantEmail,
+      name: app.restaurantName,
+      slug,
+      description: '',
+      tagline: '',
+      phone: app.phone || '',
+      address: app.address || '',
+      googleReviewUrl: app.googleReviewUrl || '',
+      logoUrl: app.logoUrl || '',
+      coverImageUrl: app.coverImageUrl || '',
+      status: 'active',
+      currency: '₹',
+      currencyCode: 'INR',
+      country: 'India',
+      primaryColor: '#078A55',
+      createdAt: now,
+      updatedAt: now,
+      reviewAssistantSettings: {
+        enabled: true,
+        maximumPhraseSelections: 5,
+        googleReviewUrl: app.googleReviewUrl || '',
+      },
+    },
+    undefined,
+    adminUser
+  );
+
+  // Mark application approved
+  await setDoc(
+    doc(db, `restaurantApplications/${applicationId}`),
+    {
+      status: 'approved' as RestaurantApplicationStatus,
+      businessId: bizId,
+      approvedBy: adminUser.email,
+      approvedAt: now,
+    },
+    { merge: true }
+  );
+
+  logAdminActivity({
+    adminUserId: adminUser.id,
+    adminEmail: adminUser.email,
+    adminName: adminUser.name,
+    action: 'Approved Restaurant Application',
+    entityType: 'restaurant',
+    entityId: bizId,
+    businessId: bizId,
+    businessName: app.restaurantName,
+    metadata: { applicationId, applicantEmail: app.applicantEmail },
+  });
+
+  return bizId;
+}
+
+/** Reject a restaurant application. */
+export async function rejectRestaurantApplication(
+  applicationId: string,
+  rejectionReason: string,
+  adminUser: { id: string; email: string; name: string }
+): Promise<void> {
+  const now = new Date().toISOString();
+  await setDoc(
+    doc(db, `restaurantApplications/${applicationId}`),
+    {
+      status: 'rejected' as RestaurantApplicationStatus,
+      rejectedBy: adminUser.email,
+      rejectedAt: now,
+      rejectionReason: rejectionReason.trim(),
+    },
+    { merge: true }
+  );
+
+  logAdminActivity({
+    adminUserId: adminUser.id,
+    adminEmail: adminUser.email,
+    adminName: adminUser.name,
+    action: 'Rejected Restaurant Application',
+    entityType: 'restaurant',
+    entityId: applicationId,
+    metadata: { applicationId, reason: rejectionReason },
+  });
+}
+
+
+
 export const SUPER_ADMIN_EMAILS = [
   'managebox02@gmail.com',
-  'try.avishekumar@gmail.com',
 ];
 
 export async function checkIsSuperAdmin(userId: string, email?: string): Promise<boolean> {
+  const cleanEmail = email?.toLowerCase().trim();
   // 1. Initial bootstrap platform admin emails
-  if (email && SUPER_ADMIN_EMAILS.includes(email.toLowerCase().trim())) {
+  if (cleanEmail && SUPER_ADMIN_EMAILS.includes(cleanEmail)) {
     return true;
   }
   // 2. Authoritative registry check in /admins/{userId}
@@ -201,7 +434,11 @@ export async function checkIsSuperAdmin(userId: string, email?: string): Promise
     const snap = await getDoc(adminDoc);
     if (snap.exists()) {
       const data = snap.data();
-      if (data.role === 'super_admin' && data.active !== false) {
+      if (
+        data.role === 'super_admin' &&
+        data.active !== false &&
+        (data.email?.toLowerCase().trim() === 'managebox02@gmail.com' || cleanEmail === 'managebox02@gmail.com')
+      ) {
         return true;
       }
     }

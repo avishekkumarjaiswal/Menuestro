@@ -47,38 +47,37 @@ export const PWAInstallPrompt: React.FC = () => {
   if (!showPrompt) return null;
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-6 md:max-w-md z-50 animate-in fade-in slide-in-from-bottom-5 duration-300">
-      <div className="bg-[#0B1220]/95 backdrop-blur-xl border border-slate-800 text-white p-4 rounded-2xl shadow-2xl flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#078A55] to-emerald-700 flex items-center justify-center text-white shrink-0 shadow-lg shadow-emerald-950/50">
-            <Smartphone className="w-5 h-5" />
+    <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] md:bottom-6 left-4 right-4 md:left-auto md:right-6 md:max-w-sm z-40 animate-in fade-in slide-in-from-bottom-3 duration-200">
+      <div className="bg-[#0F172A] border border-slate-800 text-white p-3 rounded-xl shadow-xl flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-lg bg-[#078A55]/20 text-[#078A55] flex items-center justify-center shrink-0">
+            <Smartphone className="w-4 h-4" />
           </div>
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <h4 className="text-xs font-bold text-white truncate">Install Menuestro App</h4>
-              <Sparkles className="w-3 h-3 text-emerald-400 shrink-0" />
+            <div className="flex items-center gap-1">
+              <h4 className="text-xs font-semibold text-white truncate">Install Menuestro</h4>
             </div>
-            <p className="text-[11px] text-slate-400 truncate mt-0.5">
-              Install on your home screen for fast offline menu access
+            <p className="text-[11px] text-slate-400 truncate">
+              Fast 1-tap home screen access
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             onClick={handleInstallClick}
             disabled={isInstalling}
-            className="h-8 px-3 rounded-lg bg-[#078A55] hover:bg-[#067548] active:scale-95 text-white font-semibold text-xs flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
+            className="h-7 px-2.5 rounded-lg bg-[#078A55] hover:bg-[#067347] active:scale-95 text-white font-medium text-xs flex items-center gap-1 transition-all shadow-xs cursor-pointer"
           >
-            <Download className="w-3.5 h-3.5" />
-            <span>{isInstalling ? 'Installing...' : 'Install'}</span>
+            <Download className="w-3 h-3" />
+            <span>{isInstalling ? '...' : 'Install'}</span>
           </button>
           <button
             onClick={handleDismiss}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
             aria-label="Dismiss PWA prompt"
           >
-            <X className="w-4 h-4" />
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>

@@ -34,30 +34,35 @@ export const Modal: React.FC<ModalProps> = ({
   if (!isOpen) return null;
 
   const widthClasses = {
-    sm: 'max-w-[440px]',
-    md: 'max-w-[560px]',
-    lg: 'max-w-[640px]',
-    xl: 'max-w-[760px]',
+    sm: 'sm:max-w-[420px]',
+    md: 'sm:max-w-[540px]',
+    lg: 'sm:max-w-[640px]',
+    xl: 'sm:max-w-[760px]',
   };
 
   return (
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 overflow-y-auto bg-[#0F172A]/55 backdrop-blur-[4px] flex items-center justify-center p-3.5 sm:p-6 animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/60 backdrop-blur-xs flex flex-col justify-end sm:justify-center items-center p-0 sm:p-4 animate-in fade-in duration-150"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
-        className={`relative w-full ${widthClasses[maxWidth]} bg-white rounded-[18px] sm:rounded-[20px] shadow-[0_24px_48px_rgba(16,24,40,0.18)] border border-[#E4E7EC] overflow-hidden flex flex-col max-h-[90dvh] max-h-[90vh] animate-in zoom-in-95 duration-150`}
+        className={`relative w-full ${widthClasses[maxWidth]} bg-white rounded-t-2xl sm:rounded-xl shadow-2xl border-t sm:border border-slate-200 overflow-hidden flex flex-col max-h-[90vh] sm:max-h-[85vh] animate-in slide-in-from-bottom-6 sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200 pb-[env(safe-area-inset-bottom,0px)] sm:pb-0`}
       >
+        {/* Mobile Drag Handle */}
+        <div className="sm:hidden pt-2 pb-1 flex justify-center bg-white">
+          <div className="w-10 h-1 bg-slate-300 rounded-full" />
+        </div>
+
         {/* Modal Header */}
-        <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-[#E4E7EC] flex items-center justify-between shrink-0 bg-white z-10">
+        <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white z-10">
           <div className="min-w-0 flex-1 pr-2">
-            <h2 className="text-base sm:text-lg font-bold text-[#101828] tracking-tight truncate">{title}</h2>
+            <h2 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">{title}</h2>
             {description && (
-              <p className="text-xs sm:text-sm text-[#667085] mt-0.5 font-normal truncate">
+              <p className="text-xs text-slate-500 mt-0.5 truncate">
                 {description}
               </p>
             )}
@@ -65,20 +70,20 @@ export const Modal: React.FC<ModalProps> = ({
           <button
             onClick={onClose}
             aria-label="Close modal"
-            className="p-1.5 rounded-[8px] text-[#98A2B3] hover:text-[#101828] hover:bg-[#F7F9FC] transition-colors cursor-pointer shrink-0"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="p-4 sm:p-6 overflow-y-auto flex-1 text-[#101828] text-sm overscroll-contain">
+        <div className="p-5 overflow-y-auto flex-1 text-slate-900 text-xs sm:text-sm overscroll-contain">
           {children}
         </div>
 
         {/* Modal Footer */}
         {footer && (
-          <div className="px-4 py-3 sm:px-6 sm:py-3.5 bg-white border-t border-[#EEF1F5] flex items-center justify-between gap-2.5 sm:gap-3 shrink-0">
+          <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-2.5 shrink-0">
             {footer}
           </div>
         )}

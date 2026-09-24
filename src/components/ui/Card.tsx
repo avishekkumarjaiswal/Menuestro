@@ -1,5 +1,5 @@
 import React from 'react';
-import { TrendingUp, ArrowUpRight } from 'lucide-react';
+import { TrendingUp } from 'lucide-react';
 
 interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   size?: 'default' | 'large' | 'compact';
@@ -12,14 +12,14 @@ export const Card: React.FC<CardProps> = ({
   ...props
 }) => {
   const sizeClasses = {
-    compact: 'p-4 sm:p-5 rounded-[12px]',
-    default: 'p-6 rounded-[16px]',
-    large: 'p-6 sm:p-8 rounded-[16px]',
+    compact: 'p-4 rounded-lg',
+    default: 'p-5 sm:p-6 rounded-xl',
+    large: 'p-6 sm:p-8 rounded-xl',
   };
 
   return (
     <div
-      className={`bg-white border border-[#E4E7EC] shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition-all ${sizeClasses[size]} ${className}`}
+      className={`bg-white border border-slate-200 shadow-xs transition-all ${sizeClasses[size]} ${className}`}
       {...props}
     >
       {children}
@@ -42,7 +42,7 @@ export const CardTitle: React.FC<React.HTMLAttributes<HTMLHeadingElement>> = ({
   className = '',
   ...props
 }) => (
-  <h3 className={`text-base font-semibold text-[#101828] tracking-tight ${className}`} {...props}>
+  <h3 className={`text-sm font-semibold text-slate-900 tracking-tight ${className}`} {...props}>
     {children}
   </h3>
 );
@@ -52,7 +52,7 @@ export const CardDescription: React.FC<React.HTMLAttributes<HTMLParagraphElement
   className = '',
   ...props
 }) => (
-  <p className={`text-sm text-[#667085] font-normal ${className}`} {...props}>
+  <p className={`text-xs text-slate-500 font-normal ${className}`} {...props}>
     {children}
   </p>
 );
@@ -72,7 +72,7 @@ export const CardFooter: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
   className = '',
   ...props
 }) => (
-  <div className={`mt-6 pt-4 border-t border-[#EEF1F5] flex items-center justify-between ${className}`} {...props}>
+  <div className={`mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-between ${className}`} {...props}>
     {children}
   </div>
 );
@@ -92,7 +92,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   label,
   value,
   icon,
-  iconBgColor = 'bg-[#EAF8F1]',
+  iconBgColor = 'bg-emerald-50',
   iconColor = 'text-[#078A55]',
   trend,
   onClick,
@@ -101,28 +101,26 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   return (
     <div
       onClick={onClick}
-      className={`bg-white border border-[#E4E7EC] rounded-[16px] p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)] flex flex-col justify-between transition-all ${
-        onClick ? 'cursor-pointer hover:border-[#D0D5DD] hover:shadow-[0_4px_12px_rgba(16,24,40,0.08)] group' : ''
+      className={`bg-white border border-slate-200/90 rounded-xl p-4 sm:p-5 shadow-xs flex flex-col justify-between transition-all ${
+        onClick ? 'cursor-pointer hover:border-slate-300 hover:bg-slate-50/50' : ''
       } ${className}`}
     >
       <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold text-[#667085]">{label}</span>
+        <span className="text-xs font-medium text-slate-500">{label}</span>
         <div
-          className={`w-10 h-10 rounded-[10px] ${iconBgColor} ${iconColor} flex items-center justify-center shrink-0 transition-transform ${
-            onClick ? 'group-hover:scale-105' : ''
-          }`}
+          className={`w-8 h-8 rounded-lg ${iconBgColor} ${iconColor} flex items-center justify-center shrink-0`}
         >
           {icon}
         </div>
       </div>
 
-      <div className="mt-4">
-        <div className="text-[40px] font-bold text-[#101828] leading-none tracking-[-0.03em]">
+      <div className="mt-3">
+        <div className="text-2xl font-bold text-slate-900 tracking-tight">
           {typeof value === 'number' ? value.toLocaleString() : value}
         </div>
         {trend && (
-          <div className="flex items-center gap-1.5 mt-3 text-xs font-semibold text-[#078A55]">
-            <TrendingUp className="w-3.5 h-3.5 stroke-[2.5]" />
+          <div className="flex items-center gap-1 mt-1 text-xs font-medium text-[#078A55]">
+            <TrendingUp className="w-3.5 h-3.5 stroke-[2]" />
             <span>{trend}</span>
           </div>
         )}

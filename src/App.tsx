@@ -3,42 +3,13 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './components/common/Toast';
 import { AuthPage } from './components/auth/AuthPage';
 import { OnboardingWizard } from './components/onboarding/OnboardingWizard';
+import { RestaurantOnboardingScreen } from './components/onboarding/RestaurantOnboardingScreen';
 import { DashboardLayout } from './components/dashboard/DashboardLayout';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { PublicMenuPage } from './components/public/PublicMenuPage';
 import { ReviewExperiencePage } from './components/public/ReviewExperiencePage';
 import { CombinedLandingPage } from './components/public/CombinedLandingPage';
 import { PWAInstallPrompt } from './components/common/PWAInstallPrompt';
-import { LogOut, ShieldAlert } from 'lucide-react';
-
-// ─── Not Assigned Screen ──────────────────────────────────────────────────
-function NotAssignedScreen() {
-  const { logout, user } = useAuth();
-  return (
-    <div className="min-h-screen bg-[#F7F9FC] flex flex-col items-center justify-center p-8 text-center">
-      <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center mb-5">
-        <ShieldAlert className="w-8 h-8 text-amber-500" />
-      </div>
-      <h1 className="text-xl font-bold text-slate-900 mb-2">No Restaurant Assigned</h1>
-      <p className="text-sm text-slate-600 max-w-sm leading-relaxed mb-1">
-        Your account is not assigned to a restaurant.
-      </p>
-      <p className="text-sm text-slate-500 max-w-sm leading-relaxed mb-6">
-        Please contact Menuestro administration to have your email assigned to a restaurant.
-      </p>
-      <p className="text-xs text-slate-400 font-mono mb-6 bg-slate-100 px-3 py-1.5 rounded-lg">
-        {user?.email}
-      </p>
-      <button
-        onClick={logout}
-        className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold rounded-xl transition-colors"
-      >
-        <LogOut className="w-4 h-4" />
-        Sign Out
-      </button>
-    </div>
-  );
-}
 
 // ─── Loading Screen ────────────────────────────────────────────────────────
 function LoadingScreen() {
@@ -52,7 +23,7 @@ function LoadingScreen() {
 
 // ─── Main Router ──────────────────────────────────────────────────────────
 function MainRouter() {
-  const { user, isSuperAdmin, isUnassigned, business, loading } = useAuth();
+  const { user, isSuperAdmin, isUnassigned, business, application, loading } = useAuth();
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
 
   useEffect(() => {
@@ -163,7 +134,7 @@ function MainRouter() {
 
   // ── 9. Authenticated manager with no restaurant assignment ─────────────
   if (isUnassigned) {
-    return <NotAssignedScreen />;
+    return <RestaurantOnboardingScreen />;
   }
 
   // ── 10. Authenticated manager with their restaurant ────────────────────

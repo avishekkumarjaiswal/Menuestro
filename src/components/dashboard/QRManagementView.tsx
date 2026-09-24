@@ -44,7 +44,7 @@ export const QRManagementView: React.FC = () => {
       ? 'Print and place this QR code on bills or checkout counters to collect 5-star Google reviews.'
       : 'Print and place this QR code on your tables for your customers.';
 
-  // Render QR Code onto canvas with center leaf logo
+  // Render high-contrast, clean QR Code onto canvas
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -57,7 +57,7 @@ export const QRManagementView: React.FC = () => {
         width: size,
         margin: 2,
         color: {
-          dark: '#000000',
+          dark: '#0F172A',
           light: '#FFFFFF',
         },
         errorCorrectionLevel: 'H',
@@ -65,36 +65,7 @@ export const QRManagementView: React.FC = () => {
       (error) => {
         if (error) {
           console.error('QR code error:', error);
-          return;
         }
-
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        const cx = size / 2;
-        const cy = size / 2;
-        const logoBadgeRadius = 24;
-
-        // Draw crisp white circle background badge in center of QR
-        ctx.fillStyle = '#FFFFFF';
-        ctx.beginPath();
-        ctx.arc(cx, cy, logoBadgeRadius, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Draw green organic leaf icon in the center
-        const leafSvg = `
-          <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="#078A55">
-            <path d="M12 2a9 9 0 0 1 9 9c0 4.97-4.03 9-9 9A9 9 0 0 1 3 11C3 6.03 7.03 2 12 2zm3.5 4c-3.2 0-6 2.3-6.5 5.5-1.5-.4-3.5.4-4.3 2-1 1.9-.2 4.3 1.6 5.1 2.8 1.2 6-.4 6.7-3.2 2.5-.4 4.8-2.8 4.8-6 0-2-.9-3.4-2.3-3.4z"/>
-          </svg>
-        `;
-        const blob = new Blob([leafSvg], { type: 'image/svg+xml' });
-        const url = URL.createObjectURL(blob);
-        const img = new Image();
-        img.onload = () => {
-          ctx.drawImage(img, cx - 16, cy - 16, 32, 32);
-          URL.revokeObjectURL(url);
-        };
-        img.src = url;
       }
     );
   }, [fullTargetUrl, activeTab]);
@@ -108,7 +79,7 @@ export const QRManagementView: React.FC = () => {
     link.download = `${slug}-${activeTab}-qr.png`;
     link.href = canvas.toDataURL('image/png');
     link.click();
-    showToast('QR Code image downloaded successfully');
+    showToast('QR Code downloaded as PNG');
   };
 
   const handleCopyUrl = () => {
@@ -137,33 +108,33 @@ export const QRManagementView: React.FC = () => {
 
       {/* 3. Central QR Preview Card */}
       <div className="max-w-xl mx-auto w-full">
-        <div className="bg-white border border-[#E4E7EC] rounded-[16px] p-5 sm:p-8 shadow-[0_1px_2px_rgba(16,24,40,0.04)] flex flex-col items-center text-center">
+        <div className="bg-white border border-slate-200 rounded-xl p-5 sm:p-8 shadow-xs flex flex-col items-center text-center">
           {/* Restaurant Name Header */}
-          <h2 className="text-base sm:text-lg font-bold text-[#101828] uppercase tracking-wider truncate max-w-full">
+          <h2 className="text-sm sm:text-base font-bold text-slate-900 uppercase tracking-wider truncate max-w-full">
             {restaurantName}
           </h2>
 
-          {/* QR Code Canvas Container (Strict 1:1 Square) */}
-          <div className="my-5 sm:my-6 w-60 h-60 sm:w-72 sm:h-72 aspect-square p-3 sm:p-4 bg-white rounded-[16px] border border-[#EEF1F5] shadow-xs flex items-center justify-center shrink-0">
+          {/* QR Code Canvas Container */}
+          <div className="my-5 w-56 h-56 sm:w-64 sm:h-64 aspect-square p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-center shrink-0">
             <canvas
               ref={canvasRef}
-              className="rounded-[10px] w-full h-full aspect-square object-contain block"
+              className="rounded-lg w-full h-full aspect-square object-contain block"
             />
           </div>
 
           {/* Caption text */}
-          <p className="text-sm font-semibold text-[#344054]">
+          <p className="text-xs font-semibold text-slate-700">
             {captionText}
           </p>
 
           {/* Copyable URL Pill */}
-          <div className="mt-3 inline-flex items-center gap-2 px-3.5 py-1.5 bg-[#F7F9FC] border border-[#E4E7EC] rounded-full text-xs text-[#667085] max-w-full">
-            <span className="truncate max-w-[160px] sm:max-w-xs font-mono">
+          <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600 max-w-full">
+            <span className="truncate max-w-[160px] sm:max-w-xs font-mono text-[11px]">
               {window.location.host}{targetPath}
             </span>
             <button
               onClick={handleCopyUrl}
-              className="hover:text-[#101828] p-0.5 rounded-sm transition-colors cursor-pointer shrink-0"
+              className="hover:text-slate-900 p-0.5 rounded transition-colors cursor-pointer shrink-0"
               aria-label="Copy link"
             >
               {isCopied ? <Check className="w-3.5 h-3.5 text-[#078A55]" /> : <Copy className="w-3.5 h-3.5" />}
@@ -172,7 +143,7 @@ export const QRManagementView: React.FC = () => {
               href={targetPath}
               target="_blank"
               rel="noreferrer"
-              className="hover:text-[#101828] p-0.5 rounded-sm transition-colors shrink-0"
+              className="hover:text-slate-900 p-0.5 rounded transition-colors shrink-0"
               aria-label="Open in new tab"
             >
               <ExternalLink className="w-3.5 h-3.5" />
@@ -180,7 +151,7 @@ export const QRManagementView: React.FC = () => {
           </div>
 
           {/* Action Buttons */}
-          <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row items-center gap-3 w-full max-w-sm">
+          <div className="mt-6 flex flex-col sm:flex-row items-center gap-2.5 w-full max-w-sm">
             <Button
               variant="primary"
               className="w-full sm:flex-1"
@@ -200,7 +171,7 @@ export const QRManagementView: React.FC = () => {
           </div>
 
           {/* Bottom notice */}
-          <p className="text-xs text-[#98A2B3] mt-5 sm:mt-6">
+          <p className="text-[11px] text-slate-400 mt-4">
             {noticeText}
           </p>
         </div>

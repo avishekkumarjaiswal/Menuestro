@@ -224,6 +224,29 @@ export const ReviewAssistantModal: React.FC<ReviewAssistantModalProps> = ({
     }).catch(console.warn);
   };
 
+  const handleRegenerateVariation = () => {
+    const selectedList = allPhrases.filter((p) => selectedPhraseIds.has(p.id));
+    const newDraft = generateDeterministicReview({
+      rating,
+      selectedPhrases: selectedList,
+      restaurantName: business.name,
+      customNotes,
+    });
+    setGeneratedReview(newDraft);
+    performAutoCopy(newDraft);
+
+    logAnalyticsEvent(business.id, {
+      type: 'review_draft_generated',
+      deviceType: /Mobi|Android/i.test(navigator.userAgent) ? 'mobile' : 'desktop',
+      tableNumber,
+      metadata: {
+        rating,
+        selectedPhraseCount: selectedList.length,
+        isRegeneration: true,
+      },
+    }).catch(console.warn);
+  };
+
   const handleCopyReview = async () => {
     const copied = await performAutoCopy(generatedReview);
     if (copied) {
@@ -593,14 +616,25 @@ export const ReviewAssistantModal: React.FC<ReviewAssistantModalProps> = ({
                 </span>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setStep('select_experience')}
-                className="text-xs font-semibold text-[#078A55] hover:underline flex items-center gap-1 cursor-pointer"
-              >
-                <RefreshCw className="w-3 h-3" />
-                <span>Change Selections</span>
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleRegenerateVariation}
+                  className="text-xs font-semibold text-[#078A55] hover:text-[#065F38] hover:underline flex items-center gap-1 cursor-pointer transition-colors"
+                  title="Generate another unique randomized variation"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-[#078A55]" />
+                  <span>Randomize Again</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStep('select_experience')}
+                  className="text-xs font-semibold text-[#667085] hover:text-[#344054] hover:underline flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>Change</span>
+                </button>
+              </div>
             </div>
 
             {/* Editable Review Textarea */}

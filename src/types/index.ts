@@ -45,6 +45,35 @@ export interface SlugMapping {
   createdAt: string;
 }
 
+export type RestaurantApplicationStatus = 'pending_approval' | 'approved' | 'rejected';
+
+export interface RestaurantApplication {
+  id: string;
+  /** Normalized lowercase email — same as ownerEmail once approved */
+  applicantEmail: string;
+  applicantUid: string;
+  applicantName: string;
+  /** User-submitted restaurant fields */
+  restaurantName: string;
+  address?: string;
+  phone?: string;
+  restaurantEmail?: string;
+  googleReviewUrl?: string;
+  logoUrl?: string;
+  coverImageUrl?: string;
+  status: RestaurantApplicationStatus;
+  submittedAt: string;
+  /** Set by Super Admin on approval */
+  businessId?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  /** Set by Super Admin on rejection */
+  rejectedBy?: string;
+  rejectedAt?: string;
+  rejectionReason?: string;
+}
+
+
 export type ReviewPhraseCategory = 'overall' | 'food' | 'service' | 'ambience' | 'value' | 'general';
 export type ContentStatus = 'draft' | 'active' | 'disabled';
 

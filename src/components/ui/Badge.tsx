@@ -13,22 +13,22 @@ export const Badge: React.FC<BadgeProps> = ({
   ...props
 }) => {
   const variantStyles = {
-    primary: 'bg-[#EAF8F1] text-[#078A55] border-[#D1EEDC]',
-    secondary: 'bg-[#EEF1F5] text-[#344054] border-[#E4E7EC]',
-    success: 'bg-[#EAF8F1] text-[#078A55] border-[#D1EEDC]',
-    warning: 'bg-[#FFF7DB] text-[#D97706] border-[#FDE68A]',
-    danger: 'bg-[#FEF2F2] text-[#DC2626] border-[#FEE2E2]',
-    neutral: 'bg-[#F7F9FC] text-[#667085] border-[#E4E7EC]',
+    primary: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    secondary: 'bg-slate-100 text-slate-700 border-slate-200',
+    success: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    warning: 'bg-amber-50 text-amber-700 border-amber-200',
+    danger: 'bg-rose-50 text-rose-700 border-rose-200',
+    neutral: 'bg-slate-50 text-slate-600 border-slate-200',
   };
 
   const sizeStyles = {
-    sm: 'text-[11px] px-2 py-0.5 rounded-full font-semibold',
-    default: 'text-xs px-2.5 py-1 rounded-full font-semibold',
+    sm: 'text-[11px] px-2 py-0.5 rounded-md font-medium',
+    default: 'text-xs px-2.5 py-0.5 rounded-md font-medium',
   };
 
   return (
     <span
-      className={`inline-flex items-center gap-1 border border-solid ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}
+      className={`inline-flex items-center gap-1 border ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}
       {...props}
     >
       {children}
@@ -57,7 +57,7 @@ export const Tabs: React.FC<TabsProps> = ({
   className = '',
 }) => {
   return (
-    <div className={`flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar pb-1 border-b border-[#E4E7EC] whitespace-nowrap flex-nowrap select-none ${className}`}>
+    <div className={`flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar pb-1 border-b border-slate-200 whitespace-nowrap flex-nowrap select-none ${className}`}>
       {tabs.map((tab) => {
         const isActive = activeTab === tab.id;
         return (
@@ -72,20 +72,20 @@ export const Tabs: React.FC<TabsProps> = ({
                 inline: 'center',
               });
             }}
-            className={`inline-flex items-center gap-2 py-2.5 px-3.5 text-sm font-semibold border-b-2 transition-all cursor-pointer whitespace-nowrap shrink-0 -mb-[1px] ${
+            className={`inline-flex items-center gap-2 py-2 px-3 text-xs sm:text-sm font-medium border-b-2 transition-all cursor-pointer whitespace-nowrap shrink-0 -mb-[1px] ${
               isActive
-                ? 'border-[#078A55] text-[#078A55]'
-                : 'border-transparent text-[#667085] hover:text-[#101828] hover:border-[#D0D5DD]'
+                ? 'border-[#078A55] text-[#078A55] font-semibold'
+                : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
             }`}
           >
             {tab.icon && <span className="shrink-0">{tab.icon}</span>}
             <span>{tab.label}</span>
             {typeof tab.count === 'number' && (
               <span
-                className={`text-xs px-2 py-0.5 rounded-full font-bold transition-colors ${
+                className={`text-[11px] px-1.5 py-0.2 rounded-full font-medium transition-colors ${
                   isActive
-                    ? 'bg-[#EAF8F1] text-[#078A55]'
-                    : 'bg-[#EEF1F5] text-[#667085]'
+                    ? 'bg-emerald-50 text-emerald-700'
+                    : 'bg-slate-100 text-slate-600'
                 }`}
               >
                 {tab.count}
