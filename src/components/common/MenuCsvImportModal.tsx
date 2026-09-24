@@ -339,15 +339,19 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
   const handleExecuteImport = async () => {
     if (selectedItems.length === 0 || !businessId) return;
 
+    const totalSteps = selectedItems.length + categoriesToCreate.length;
     setStep('importing');
     setImportProgress({
       current: 0,
-      total: selectedItems.length + categoriesToCreate.length,
-      currentAction: 'Preparing import...',
+      total: totalSteps,
+      currentAction: 'Preparing import and analyzing existing dishes...',
       createdCategoriesCount: 0,
       createdItemsCount: 0,
       updatedItemsCount: 0,
     });
+
+    // Initial micro-pause to let modal switch to 'importing' view
+    await new Promise((r) => setTimeout(r, 60));
 
     try {
       // 1. Build category map: categoryName (lower) -> categoryId
@@ -366,11 +370,14 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
       // 2. Create missing categories
       let nextSortOrder = existingCategories.length + 1;
       for (const catName of categoriesToCreate) {
-        setImportProgress((prev) => ({
-          ...prev,
+        setImportProgress({
           current: completedSteps,
+          total: totalSteps,
           currentAction: `Creating category "${catName}"...`,
-        }));
+          createdCategoriesCount: categoriesCreated,
+          createdItemsCount: itemsCreated,
+          updatedItemsCount: itemsUpdated,
+        });
 
         const cleanName = catName.trim();
         const catId = await createCategory(
@@ -387,9 +394,21 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
         categoryMap.set(cleanName.toLowerCase(), catId);
         categoriesCreated++;
         completedSteps++;
+
+        // Micro-yield to allow UI update
+        await new Promise((r) => setTimeout(r, 20));
       }
 
       // 3. Fetch latest items to guarantee zero duplicate creation during upsert
+      setImportProgress({
+        current: completedSteps,
+        total: totalSteps,
+        currentAction: 'Checking database items for smart deduplication...',
+        createdCategoriesCount: categoriesCreated,
+        createdItemsCount: itemsCreated,
+        updatedItemsCount: itemsUpdated,
+      });
+
       const currentDbItems = await getAllMenuItems(businessId, existingCategories);
       const dbItemMap = new Map<string, MenuItem>();
       currentDbItems.forEach((item) => {
@@ -404,6 +423,7 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
 
         if (!targetCatId) {
           console.warn(`Category mapping not found for ${item.categoryName}`);
+          completedSteps++;
           continue;
         }
 
@@ -412,14 +432,14 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
 
         if (existingMatch) {
           // NO DUPLICATES — UPDATE EXISTING DISH WITH NEW PRICE & DETAILS
-          setImportProgress((prev) => ({
-            ...prev,
+          setImportProgress({
             current: completedSteps + 1,
-            currentAction: `Updating existing dish "${item.name}" (Price: ${currencySymbol}${item.price})...`,
+            total: totalSteps,
+            currentAction: `Updating "${item.name}" (Price: ${currencySymbol}${item.price})...`,
             createdCategoriesCount: categoriesCreated,
             createdItemsCount: itemsCreated,
-            updatedItemsCount: itemsUpdated,
-          }));
+            updatedItemsCount: itemsUpdated + 1,
+          });
 
           await updateMenuItem(
             businessId,
@@ -439,14 +459,14 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
           itemsUpdated++;
         } else {
           // CREATE NEW DISH
-          setImportProgress((prev) => ({
-            ...prev,
+          setImportProgress({
             current: completedSteps + 1,
-            currentAction: `Creating new dish "${item.name}" (${i + 1}/${selectedItems.length})...`,
+            total: totalSteps,
+            currentAction: `Creating "${item.name}" (${currencySymbol}${item.price})...`,
             createdCategoriesCount: categoriesCreated,
-            createdItemsCount: itemsCreated,
+            createdItemsCount: itemsCreated + 1,
             updatedItemsCount: itemsUpdated,
-          }));
+          });
 
           const createdId = await createMenuItem(
             businessId,
@@ -488,17 +508,20 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
         }
 
         completedSteps++;
+        // Micro-yield to allow browser paint loop to animate the progress bar smoothly
+        await new Promise((r) => setTimeout(r, 20));
       }
 
       setImportProgress({
-        current: completedSteps,
-        total: completedSteps,
-        currentAction: 'Complete!',
+        current: totalSteps,
+        total: totalSteps,
+        currentAction: 'Finalizing menu catalog...',
         createdCategoriesCount: categoriesCreated,
         createdItemsCount: itemsCreated,
         updatedItemsCount: itemsUpdated,
       });
 
+      await new Promise((r) => setTimeout(r, 100));
       setStep('completed');
     } catch (err) {
       console.error('CSV import failed:', err);
@@ -824,31 +847,76 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
         {/* STEP 3: IMPORTING IN PROGRESS                             */}
         {/* ========================================================= */}
         {step === 'importing' && (
-          <div className="py-8 text-center space-y-4">
-            <div className="w-12 h-12 mx-auto rounded-full bg-emerald-50 text-[#078A55] flex items-center justify-center animate-spin">
-              <Loader2 className="w-6 h-6" />
+          <div className="py-6 px-2 space-y-6">
+            <div className="text-center space-y-2">
+              <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-emerald-50 text-[#078A55] shadow-xs border border-emerald-100">
+                <Loader2 className="w-7 h-7 animate-spin" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900">
+                Syncing Menu Items ({Math.round((importProgress.current / Math.max(1, importProgress.total)) * 100)}%)
+              </h3>
+              <p className="text-xs text-slate-500 font-mono animate-pulse">
+                {importProgress.currentAction}
+              </p>
             </div>
 
-            <div className="space-y-1">
-              <h3 className="text-sm font-bold text-slate-900">Syncing Menu into Database...</h3>
-              <p className="text-xs text-slate-500">{importProgress.currentAction}</p>
-            </div>
-
-            {/* Progress bar */}
-            <div className="max-w-md mx-auto space-y-1.5">
-              <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+            {/* High-visibility Progress bar */}
+            <div className="max-w-lg mx-auto space-y-2">
+              <div className="w-full bg-slate-100 rounded-full h-3.5 overflow-hidden p-0.5 border border-slate-200 shadow-inner">
                 <div
-                  className="bg-[#078A55] h-full transition-all duration-200"
+                  className="bg-gradient-to-r from-emerald-600 to-[#078A55] h-full rounded-full transition-all duration-300 shadow-sm"
                   style={{
-                    width: `${Math.round(
-                      (importProgress.current / Math.max(1, importProgress.total)) * 100
+                    width: `${Math.min(
+                      100,
+                      Math.max(
+                        3,
+                        Math.round((importProgress.current / Math.max(1, importProgress.total)) * 100)
+                      )
                     )}%`,
                   }}
                 />
               </div>
-              <div className="flex justify-between text-[10px] text-slate-500 font-mono">
-                <span>{importProgress.current} processed</span>
-                <span>{importProgress.total} total</span>
+
+              <div className="flex items-center justify-between text-xs font-semibold text-slate-600 font-mono px-0.5">
+                <span>
+                  {importProgress.current} of {importProgress.total} processed
+                </span>
+                <span className="text-[#078A55]">
+                  {Math.round((importProgress.current / Math.max(1, importProgress.total)) * 100)}% Complete
+                </span>
+              </div>
+            </div>
+
+            {/* Live Stats Counters */}
+            <div className="grid grid-cols-3 gap-3 max-w-lg mx-auto pt-2">
+              <div className="p-3 bg-blue-50/80 border border-blue-200 rounded-xl text-center">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-blue-700 block">
+                  Updated
+                </span>
+                <span className="text-lg font-bold text-blue-900 mt-0.5 block">
+                  {importProgress.updatedItemsCount}
+                </span>
+                <span className="text-[10px] text-blue-600">Existing dishes</span>
+              </div>
+
+              <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-xl text-center">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-700 block">
+                  Created
+                </span>
+                <span className="text-lg font-bold text-emerald-900 mt-0.5 block">
+                  {importProgress.createdItemsCount}
+                </span>
+                <span className="text-[10px] text-emerald-600">New dishes</span>
+              </div>
+
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-600 block">
+                  Categories
+                </span>
+                <span className="text-lg font-bold text-slate-900 mt-0.5 block">
+                  {importProgress.createdCategoriesCount}
+                </span>
+                <span className="text-[10px] text-slate-500">New categories</span>
               </div>
             </div>
           </div>
