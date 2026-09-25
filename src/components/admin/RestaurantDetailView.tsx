@@ -346,11 +346,16 @@ export const RestaurantDetailView: React.FC<RestaurantDetailViewProps> = ({
 
   const [isCleaningDuplicates, setIsCleaningDuplicates] = useState(false);
 
-  // Detect duplicate dishes in the current category
+  // Detect duplicate dishes in the current category (taking tags into account)
   const duplicateCategoryItems = useMemo(() => {
     const seen = new Map<string, MenuItem[]>();
     menuItems.forEach((item) => {
-      const key = `${item.categoryId}___${item.name.toLowerCase().trim()}`;
+      const tagsKey = (item.tags || [])
+        .map((t) => t.trim().toLowerCase())
+        .filter(Boolean)
+        .sort()
+        .join('|');
+      const key = `${item.categoryId}___${item.name.toLowerCase().trim()}___${tagsKey}`;
       const list = seen.get(key) || [];
       list.push(item);
       seen.set(key, list);
@@ -359,7 +364,7 @@ export const RestaurantDetailView: React.FC<RestaurantDetailViewProps> = ({
     const duplicatesToDelete: MenuItem[] = [];
     seen.forEach((list) => {
       if (list.length > 1) {
-        // Keep the first, mark remaining as duplicates
+        // Keep the first, mark remaining identical copies as duplicates
         duplicatesToDelete.push(...list.slice(1));
       }
     });
