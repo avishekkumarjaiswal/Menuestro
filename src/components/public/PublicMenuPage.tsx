@@ -13,6 +13,7 @@ import { SearchInput } from '../ui/Input';
 import { EmptyState } from '../ui/EmptyState';
 import { PublicMenuItemSkeleton } from '../ui/Skeleton';
 import { ReviewAssistantModal } from './ReviewAssistantModal';
+import { TagBadge } from '../ui/TagBadge';
 import {
   Leaf,
   Info,
@@ -196,8 +197,9 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({ slug }) => {
       const matchName = item.name.toLowerCase().includes(query);
       const matchDesc = item.description ? item.description.toLowerCase().includes(query) : false;
       const matchCat = categoryName.includes(query);
+      const matchTags = item.tags ? item.tags.some((t) => t.toLowerCase().includes(query)) : false;
 
-      return matchName || matchDesc || matchCat;
+      return matchName || matchDesc || matchCat || matchTags;
     });
   }, [availableItems, activeCategory, searchQuery, categoryNameMap]);
 
@@ -529,6 +531,15 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({ slug }) => {
                           </span>
                         </div>
 
+                        {/* Item Tags */}
+                        {item.tags && item.tags.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1 mt-1">
+                            {item.tags.map((tag, idx) => (
+                              <TagBadge key={idx} tag={tag} size="xs" />
+                            ))}
+                          </div>
+                        )}
+
                         {item.description && (
                           <p className="text-[13px] text-[#667085] mt-1 line-clamp-2 leading-relaxed">
                             {item.description}
@@ -655,11 +666,16 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({ slug }) => {
                 <h3 className="text-lg font-bold text-[#101828]">
                   {selectedItem.name}
                 </h3>
-                {categoryMap.get(selectedItem.categoryId) && (
-                  <span className="inline-block mt-0.5 text-xs font-semibold text-[#078A55] bg-[#EAF8F1] px-2 py-0.5 rounded-full border border-[#078A55]/10">
-                    {categoryMap.get(selectedItem.categoryId)?.name}
-                  </span>
-                )}
+                <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                  {categoryMap.get(selectedItem.categoryId) && (
+                    <span className="inline-block text-xs font-semibold text-[#078A55] bg-[#EAF8F1] px-2 py-0.5 rounded-full border border-[#078A55]/10">
+                      {categoryMap.get(selectedItem.categoryId)?.name}
+                    </span>
+                  )}
+                  {selectedItem.tags && selectedItem.tags.map((tag, idx) => (
+                    <TagBadge key={idx} tag={tag} size="sm" />
+                  ))}
+                </div>
               </div>
               <span className="text-lg font-bold text-[#078A55] shrink-0">
                 {formatPrice(selectedItem.price)}

@@ -20,6 +20,8 @@ import {
   Plus,
   Check,
 } from 'lucide-react';
+import { TagBadge } from '../ui/TagBadge';
+import { getPresetImageForDishName } from '../../services/imagePresets';
 
 export interface ParsedCsvItem {
   id: string;
@@ -81,6 +83,18 @@ function parseCsvLine(line: string): string[] {
 }
 
 /**
+ * Helper to generate normalized tag signature for distinguishing items by tags
+ */
+export function normalizeTagsKey(tags?: string[]): string {
+  if (!tags || tags.length === 0) return '';
+  return tags
+    .map((t) => t.trim().toLowerCase())
+    .filter(Boolean)
+    .sort()
+    .join('|');
+}
+
+/**
  * Parses raw CSV text into structured items and automatically deduplicates within the CSV
  */
 function parseMenuCsv(rawText: string): { items: ParsedCsvItem[]; errors: string[] } {
@@ -112,9 +126,9 @@ function parseMenuCsv(rawText: string): { items: ParsedCsvItem[]; errors: string
   if (catIdx === -1 && rawHeaders.length >= 1) catIdx = 0;
   if (priceIdx === -1 && rawHeaders.length >= 3) priceIdx = 2;
 
-  // Use map to automatically deduplicate multiple rows with same category & dish name within the CSV
-  const dedupMap = new Map<string, ParsedCsvItem>();
+  const items: ParsedCsvItem[] = [];
   const errors: string[] = [];
+  const seenExact = new Set<string>();
 
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i];
@@ -149,24 +163,34 @@ function parseMenuCsv(rawText: string): { items: ParsedCsvItem[]; errors: string
 
     const cleanCat = rawCategory.trim() || 'General';
     const cleanName = rawName.trim();
-    const dedupKey = `${cleanCat.toLowerCase()}___${cleanName.toLowerCase()}`;
+    const cleanDesc = rawDesc.trim();
+    const tagsKey = normalizeTagsKey(tags);
 
-    dedupMap.set(dedupKey, {
+    // Skip 100% exact duplicate identical row
+    const exactSignature = `${cleanCat.toLowerCase()}___${cleanName.toLowerCase()}___${tagsKey}___${cleanDesc.toLowerCase()}___${price}`;
+    if (seenExact.has(exactSignature)) {
+      continue;
+    }
+    seenExact.add(exactSignature);
+
+    const autoMatchedImg = rawImg.trim() || getPresetImageForDishName(cleanName) || '';
+
+    items.push({
       id: `csv-row-${i}`,
       categoryName: cleanCat,
       name: cleanName,
       price: price >= 0 ? price : 0,
-      description: rawDesc.trim(),
+      description: cleanDesc,
       isAvailable,
       tags,
-      imageUrl: rawImg.trim(),
+      imageUrl: autoMatchedImg,
       isValid,
       validationError,
       selected: isValid,
     });
   }
 
-  return { items: Array.from(dedupMap.values()), errors };
+  return { items, errors };
 }
 
 const SAMPLE_CSV_CONTENT = `Category,Item Name,Price,Description,Is Available,Tags,Image URL
@@ -234,8 +258,9 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
       getAllMenuItems(businessId, existingCategories).then((items) => {
         const map = new Map<string, MenuItem>();
         items.forEach((item) => {
-          map.set(`${item.categoryId}___${item.name.toLowerCase().trim()}`, item);
-          map.set(item.name.toLowerCase().trim(), item);
+          const tagsKey = normalizeTagsKey(item.tags);
+          map.set(`${item.categoryId}___${item.name.toLowerCase().trim()}___${tagsKey}`, item);
+          map.set(`${item.name.toLowerCase().trim()}___${tagsKey}`, item);
         });
         setExistingItemsMap(map);
       }).catch(console.warn);
@@ -296,7 +321,10 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
 
     // Check which items are updates vs new creations
     const mappedItems = items.map((item) => {
-      const isMatch = existingItemsMap.has(item.name.toLowerCase().trim());
+      const tagsKey = normalizeTagsKey(item.tags);
+      const isMatch =
+        existingItemsMap.has(`${item.categoryName.toLowerCase().trim()}___${item.name.toLowerCase().trim()}___${tagsKey}`) ||
+        existingItemsMap.has(`${item.name.toLowerCase().trim()}___${tagsKey}`);
       return {
         ...item,
         isExistingMatch: isMatch,
@@ -412,8 +440,9 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
       const currentDbItems = await getAllMenuItems(businessId, existingCategories);
       const dbItemMap = new Map<string, MenuItem>();
       currentDbItems.forEach((item) => {
-        dbItemMap.set(`${item.categoryId}___${item.name.toLowerCase().trim()}`, item);
-        dbItemMap.set(item.name.toLowerCase().trim(), item);
+        const tagsKey = normalizeTagsKey(item.tags);
+        dbItemMap.set(`${item.categoryId}___${item.name.toLowerCase().trim()}___${tagsKey}`, item);
+        dbItemMap.set(`${item.name.toLowerCase().trim()}___${tagsKey}`, item);
       });
 
       // 4. Upsert menu items: Update existing matches, create new items
@@ -428,7 +457,10 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
         }
 
         const cleanName = item.name.toLowerCase().trim();
-        const existingMatch = dbItemMap.get(`${targetCatId}___${cleanName}`) || dbItemMap.get(cleanName);
+        const tagsKey = normalizeTagsKey(item.tags);
+        const existingMatch =
+          dbItemMap.get(`${targetCatId}___${cleanName}___${tagsKey}`) ||
+          dbItemMap.get(`${cleanName}___${tagsKey}`);
 
         if (existingMatch) {
           // NO DUPLICATES — UPDATE EXISTING DISH WITH NEW PRICE & DETAILS
@@ -500,8 +532,9 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
             };
-            dbItemMap.set(`${targetCatId}___${cleanName}`, registeredItem);
-            dbItemMap.set(cleanName, registeredItem);
+            const regTagsKey = normalizeTagsKey(item.tags);
+            dbItemMap.set(`${targetCatId}___${cleanName}___${regTagsKey}`, registeredItem);
+            dbItemMap.set(`${cleanName}___${regTagsKey}`, registeredItem);
           }
 
           itemsCreated++;
@@ -777,8 +810,15 @@ export const MenuCsvImportModal: React.FC<MenuCsvImportModalProps> = ({
                       </td>
                       <td className="p-2.5">
                         <div className="font-semibold text-slate-900">{item.name || '(Empty Name)'}</div>
+                        {item.tags && item.tags.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1 my-1">
+                            {item.tags.map((tag, idx) => (
+                              <TagBadge key={idx} tag={tag} size="xs" />
+                            ))}
+                          </div>
+                        )}
                         {item.description && (
-                          <div className="text-[10px] text-slate-500 truncate max-w-[200px]">
+                          <div className="text-[10px] text-slate-500 truncate max-w-[220px]">
                             {item.description}
                           </div>
                         )}

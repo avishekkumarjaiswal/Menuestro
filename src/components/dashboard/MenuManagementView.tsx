@@ -33,6 +33,7 @@ import {
   UploadCloud,
 } from 'lucide-react';
 import { MenuCsvImportModal } from '../common/MenuCsvImportModal';
+import { TagBadge } from '../ui/TagBadge';
 
 export const MenuManagementView: React.FC = () => {
   const { business } = useAuth();
@@ -218,7 +219,9 @@ export const MenuManagementView: React.FC = () => {
       const matchesSearch =
         item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (item.description &&
-          item.description.toLowerCase().includes(searchQuery.toLowerCase()));
+          item.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (item.tags &&
+          item.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase())));
       return matchesCategory && matchesSearch;
     });
 
@@ -264,11 +267,16 @@ export const MenuManagementView: React.FC = () => {
 
   const [isCleaningDuplicates, setIsCleaningDuplicates] = useState(false);
 
-  // Detect duplicate dishes by category and name
+  // Detect duplicate dishes by category, name, and tags
   const duplicateItems = useMemo(() => {
     const seen = new Map<string, MenuItem[]>();
     items.forEach((item) => {
-      const key = `${item.categoryId}___${item.name.toLowerCase().trim()}`;
+      const tagsKey = (item.tags || [])
+        .map((t) => t.trim().toLowerCase())
+        .filter(Boolean)
+        .sort()
+        .join('|');
+      const key = `${item.categoryId}___${item.name.toLowerCase().trim()}___${tagsKey}`;
       const list = seen.get(key) || [];
       list.push(item);
       seen.set(key, list);
@@ -277,7 +285,7 @@ export const MenuManagementView: React.FC = () => {
     const duplicatesToDelete: MenuItem[] = [];
     seen.forEach((list) => {
       if (list.length > 1) {
-        // Keep the first one, mark remaining copies as duplicates
+        // Keep the first one, mark remaining identical copies as duplicates
         duplicatesToDelete.push(...list.slice(1));
       }
     });
@@ -497,6 +505,13 @@ export const MenuManagementView: React.FC = () => {
                             </span>
                           )}
                         </div>
+                        {item.tags && item.tags.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1 mt-1">
+                            {item.tags.map((tag, idx) => (
+                              <TagBadge key={idx} tag={tag} size="xs" />
+                            ))}
+                          </div>
+                        )}
                         {item.description && (
                           <p className="text-xs text-[#667085] mt-1 line-clamp-2 leading-relaxed">
                             {item.description}
@@ -597,6 +612,13 @@ export const MenuManagementView: React.FC = () => {
                                   </span>
                                 )}
                               </div>
+                              {item.tags && item.tags.length > 0 && (
+                                <div className="flex flex-wrap items-center gap-1 mt-1">
+                                  {item.tags.map((tag, idx) => (
+                                    <TagBadge key={idx} tag={tag} size="xs" />
+                                  ))}
+                                </div>
+                              )}
                               {item.description && (
                                 <p className="text-xs text-[#667085] mt-0.5 truncate">
                                   {item.description}

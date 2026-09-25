@@ -200,7 +200,18 @@ export interface Category {
   updatedAt: string;
 }
 
-export type MenuItemTag = 'Bestseller' | 'Chef\'s Special' | 'Vegetarian' | 'Vegan' | 'Spicy' | 'Gluten-Free' | 'New';
+export type MenuItemTag =
+  | 'Bestseller'
+  | "Chef's Special"
+  | 'Vegetarian'
+  | 'Veg'
+  | 'Non-Veg'
+  | 'Egg'
+  | 'Vegan'
+  | 'Spicy'
+  | 'Gluten-Free'
+  | 'New'
+  | (string & {});
 
 export interface MenuItem {
   id: string;

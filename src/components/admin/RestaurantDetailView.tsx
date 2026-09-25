@@ -25,6 +25,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { MenuCsvImportModal } from '../common/MenuCsvImportModal';
+import { TagBadge } from '../ui/TagBadge';
 import {
   Business,
   BusinessStatus,
@@ -1125,6 +1126,13 @@ export const RestaurantDetailView: React.FC<RestaurantDetailViewProps> = ({
                         {business.currency || '₹'}{item.price}
                       </span>
                     </div>
+                    {item.tags && item.tags.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1 my-1">
+                        {item.tags.map((tag, idx) => (
+                          <TagBadge key={idx} tag={tag} size="xs" />
+                        ))}
+                      </div>
+                    )}
                     <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">{item.description}</p>
 
                     <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 text-xs">
