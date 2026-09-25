@@ -67,7 +67,10 @@ function MainRouter() {
     return <CombinedLandingPage slug={combinedMatch ? combinedMatch[1] : combinedQuery!} />;
   }
 
-  // ── 4. Admin routes ────────────────────────────────────────────────────
+  // ── 4. Loading ─────────────────────────────────────────────────────────
+  if (loading) return <LoadingScreen />;
+
+  // ── 5. Admin routes (Unauthenticated) ──────────────────────────────────
   const requestedAdminPath =
     currentPath.startsWith('/admin') ||
     hash.startsWith('#/admin') ||
@@ -85,9 +88,6 @@ function MainRouter() {
       />
     );
   }
-
-  // ── 5. Loading ─────────────────────────────────────────────────────────
-  if (loading) return <LoadingScreen />;
 
   // ── 6. Not authenticated ───────────────────────────────────────────────
   if (!user) return <AuthPage />;

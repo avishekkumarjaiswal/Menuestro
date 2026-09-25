@@ -91,7 +91,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [application, setApplicationState] = useState<RestaurantApplication | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState<boolean>(initialCache.isSuperAdmin);
   const [isUnassigned, setIsUnassigned] = useState<boolean>(false);
-  const [loading, setLoading] = useState<boolean>(!auth.currentUser && !initialCache.profile && !initialCache.business);
+  const [loading, setLoading] = useState<boolean>(true);
 
   const setBusiness = (biz: Business | null) => {
     setBusinessState(biz);
