@@ -434,15 +434,24 @@ export async function checkIsSuperAdmin(userId: string, email?: string): Promise
     const snap = await getDoc(adminDoc);
     if (snap.exists()) {
       const data = snap.data();
-      if (
-        data.role === 'super_admin' &&
-        data.active !== false &&
-        (data.email?.toLowerCase().trim() === 'managebox02@gmail.com' || cleanEmail === 'managebox02@gmail.com')
-      ) {
+      if (data.role === 'super_admin' && data.active !== false) {
         return true;
       }
     }
   } catch {}
+
+  // 3. Fallback check in /users/{userId}
+  try {
+    const userDoc = doc(db, `users/${userId}`);
+    const snap = await getDoc(userDoc);
+    if (snap.exists()) {
+      const data = snap.data();
+      if (data.role === 'super_admin') {
+        return true;
+      }
+    }
+  } catch {}
+
   return false;
 }
 
