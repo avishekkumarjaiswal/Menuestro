@@ -597,26 +597,26 @@ export const ReviewAssistantModal: React.FC<ReviewAssistantModalProps> = ({
           /* ========================================================= */
           /* STEP 2: EDITABLE DRAFT & GOOGLE REDIRECT                  */
           /* ========================================================= */
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {/* Rating summary badge */}
-            <div className="flex items-center justify-between p-3 bg-[#F7F9FC] border border-[#E4E7EC] rounded-[12px]">
-              <div className="flex items-center gap-1.5">
+            <div className="flex items-center justify-between p-2.5 sm:p-3 bg-[#F7F9FC] border border-[#E4E7EC] rounded-[12px] gap-2">
+              <div className="flex items-center gap-1.5 shrink-0">
                 <div className="flex items-center text-[#F59E0B]">
                   {[...Array(5)].map((_, i) => (
                     <Star
                       key={i}
-                      className={`w-4 h-4 ${
+                      className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${
                         i < rating ? 'fill-[#F59E0B] text-[#F59E0B]' : 'text-[#D0D5DD]'
                       }`}
                     />
                   ))}
                 </div>
-                <span className="text-xs font-bold text-[#101828] ml-1">
-                  {rating}.0 Rating
+                <span className="text-xs font-bold text-[#101828] ml-0.5">
+                  {rating}.0
                 </span>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                 <button
                   type="button"
                   onClick={handleRegenerateVariation}
@@ -624,8 +624,9 @@ export const ReviewAssistantModal: React.FC<ReviewAssistantModalProps> = ({
                   title="Generate another unique randomized variation"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-[#078A55]" />
-                  <span>Randomize Again</span>
+                  <span>Randomize</span>
                 </button>
+                <span className="text-[#D0D5DD] text-xs">•</span>
                 <button
                   type="button"
                   onClick={() => setStep('select_experience')}
@@ -638,7 +639,7 @@ export const ReviewAssistantModal: React.FC<ReviewAssistantModalProps> = ({
             </div>
 
             {/* Editable Review Textarea */}
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-semibold text-[#344054]">
                   Generated Review Text
@@ -662,21 +663,21 @@ export const ReviewAssistantModal: React.FC<ReviewAssistantModalProps> = ({
                     }).catch(console.warn);
                   }
                 }}
-                rows={4}
-                className="w-full p-3.5 bg-white border border-[#D0D5DD] rounded-[12px] text-sm text-[#101828] font-normal leading-relaxed focus:outline-hidden focus:ring-2 focus:ring-[#078A55]/20 focus:border-[#078A55] transition-all resize-none shadow-xs"
+                rows={3}
+                className="w-full p-3 bg-white border border-[#D0D5DD] rounded-[12px] text-xs sm:text-sm text-[#101828] font-normal leading-relaxed focus:outline-hidden focus:ring-2 focus:ring-[#078A55]/20 focus:border-[#078A55] transition-all resize-none shadow-xs"
                 placeholder="Write your review..."
               />
             </div>
 
             {/* Instructions Banner */}
-            <div className="p-3.5 bg-[#EAF8F1] border border-[#D1EEDC] rounded-[12px] flex items-start gap-2.5">
+            <div className="p-2.5 sm:p-3 bg-[#EAF8F1] border border-[#D1EEDC] rounded-[12px] flex items-start gap-2">
               <Sparkles className="w-4 h-4 text-[#078A55] shrink-0 mt-0.5" />
               <div className="text-xs text-[#065F38] space-y-0.5">
-                <p className="font-semibold">
+                <p className="font-semibold text-xs">
                   Review will be copied to your clipboard.
                 </p>
-                <p className="text-[11px] text-[#078A55] leading-relaxed">
-                  Paste it into Google and make any final personal adjustments before posting.
+                <p className="text-[11px] text-[#078A55] leading-normal">
+                  Paste it into Google and make any final personal adjustments.
                 </p>
               </div>
             </div>

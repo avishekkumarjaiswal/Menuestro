@@ -29,7 +29,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
         </p>
       </div>
       {action && (
-        <div className="flex items-center gap-3 shrink-0 self-start sm:self-auto">
+        <div className="flex items-center gap-3 shrink-0 self-start sm:self-auto w-full sm:w-auto overflow-x-auto no-scrollbar">
           {action}
         </div>
       )}

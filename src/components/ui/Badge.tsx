@@ -94,6 +94,7 @@ export const Tabs: React.FC<TabsProps> = ({
           </button>
         );
       })}
+      <div className="shrink-0 w-4 h-1 pointer-events-none" aria-hidden="true" />
     </div>
   );
 };

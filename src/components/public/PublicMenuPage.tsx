@@ -395,11 +395,18 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({ slug }) => {
           {/* Horizontally Scrollable Categories */}
           <nav 
             aria-label="Menu categories"
-            className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 -mx-4 px-4 pr-12 select-none whitespace-nowrap flex-nowrap scroll-smooth"
+            className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 -mx-4 px-4 select-none whitespace-nowrap flex-nowrap scroll-smooth"
           >
             <button
               type="button"
-              onClick={() => setActiveCategory('all')}
+              onClick={(e) => {
+                setActiveCategory('all');
+                (e.currentTarget as HTMLElement).scrollIntoView({
+                  behavior: 'smooth',
+                  block: 'nearest',
+                  inline: 'center',
+                });
+              }}
               className={`h-8 px-3.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
                 activeCategory === 'all'
                   ? 'bg-[#078A55] text-white shadow-xs'
@@ -415,7 +422,14 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({ slug }) => {
                 <button
                   key={cat.id}
                   type="button"
-                  onClick={() => setActiveCategory(cat.id)}
+                  onClick={(e) => {
+                    setActiveCategory(cat.id);
+                    (e.currentTarget as HTMLElement).scrollIntoView({
+                      behavior: 'smooth',
+                      block: 'nearest',
+                      inline: 'center',
+                    });
+                  }}
                   className={`h-8 px-3.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
                     isCatActive
                       ? 'bg-[#078A55] text-white shadow-xs'
@@ -426,6 +440,8 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({ slug }) => {
                 </button>
               );
             })}
+            {/* Generous trailing spacer so the last category is never cut off at the edge */}
+            <div className="shrink-0 w-6 h-1 pointer-events-none" aria-hidden="true" />
           </nav>
         </div>
 

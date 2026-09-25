@@ -51,7 +51,7 @@ export const Modal: React.FC<ModalProps> = ({
       }}
     >
       <div
-        className={`relative w-full ${widthClasses[maxWidth]} bg-white rounded-t-2xl sm:rounded-xl shadow-2xl border-t sm:border border-slate-200 overflow-hidden flex flex-col max-h-[90vh] sm:max-h-[85vh] animate-in slide-in-from-bottom-6 sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200 pb-[env(safe-area-inset-bottom,0px)] sm:pb-0`}
+        className={`relative w-full ${widthClasses[maxWidth]} bg-white rounded-t-2xl sm:rounded-xl shadow-2xl border-t sm:border border-slate-200 overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[85vh] animate-in slide-in-from-bottom-6 sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200 pb-[env(safe-area-inset-bottom,0px)] sm:pb-0`}
       >
         {/* Mobile Drag Handle */}
         <div className="sm:hidden pt-2 pb-1 flex justify-center bg-white">
@@ -59,7 +59,7 @@ export const Modal: React.FC<ModalProps> = ({
         </div>
 
         {/* Modal Header */}
-        <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white z-10">
+        <div className="px-4 sm:px-5 py-3 sm:py-3.5 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white z-10">
           <div className="min-w-0 flex-1 pr-2">
             <h2 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">{title}</h2>
             {description && (
@@ -78,13 +78,13 @@ export const Modal: React.FC<ModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-5 overflow-y-auto flex-1 text-slate-900 text-xs sm:text-sm overscroll-contain">
+        <div className="p-4 sm:p-5 overflow-y-auto flex-1 text-slate-900 text-xs sm:text-sm overscroll-contain">
           {children}
         </div>
 
         {/* Modal Footer */}
         {footer && (
-          <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-2.5 shrink-0">
+          <div className="px-4 sm:px-5 py-3 sm:py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-2.5 shrink-0">
             {footer}
           </div>
         )}

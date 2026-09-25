@@ -313,21 +313,7 @@ export const MenuManagementView: React.FC = () => {
         title="Menu Management"
         description="Add, edit or hide menu items. Changes reflect instantly on customer devices."
         action={
-          <div className="flex items-center gap-2.5">
-            <Button
-              variant="secondary"
-              leftIcon={<UploadCloud className="w-4 h-4 text-slate-600" />}
-              onClick={() => setIsCsvModalOpen(true)}
-            >
-              Import CSV
-            </Button>
-            <Button
-              variant="secondary"
-              leftIcon={<Layers className="w-4 h-4 text-[#078A55]" />}
-              onClick={() => setIsCategoryModalOpen(true)}
-            >
-              Categories
-            </Button>
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar w-full sm:w-auto pb-0.5 sm:pb-0">
             <Button
               variant="primary"
               leftIcon={<Plus className="w-4 h-4" />}
@@ -335,8 +321,25 @@ export const MenuManagementView: React.FC = () => {
                 setItemToEdit(null);
                 setIsDrawerOpen(true);
               }}
+              className="shrink-0"
             >
               Add Item
+            </Button>
+            <Button
+              variant="secondary"
+              leftIcon={<Layers className="w-4 h-4 text-[#078A55]" />}
+              onClick={() => setIsCategoryModalOpen(true)}
+              className="shrink-0"
+            >
+              Categories
+            </Button>
+            <Button
+              variant="secondary"
+              leftIcon={<UploadCloud className="w-4 h-4 text-slate-600" />}
+              onClick={() => setIsCsvModalOpen(true)}
+              className="shrink-0"
+            >
+              Import CSV
             </Button>
           </div>
         }
