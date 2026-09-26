@@ -25,12 +25,16 @@ function LoadingScreen() {
 // ─── Main Router ──────────────────────────────────────────────────────────
 function MainRouter() {
   const { user, isSuperAdmin, isUnassigned, business, application, loading } = useAuth();
-  const [currentPath, setCurrentPath] = useState(window.location.pathname);
+  
+  // Track complete URL to ensure instant, reliable re-renders on popstate & navigateTo
+  const [currentUrl, setCurrentUrl] = useState(
+    () => window.location.pathname + window.location.search + window.location.hash
+  );
 
   const navigateTo = (path: string) => {
     window.history.pushState({}, '', path);
-    setCurrentPath(window.location.pathname);
-    const targetPath = path.split('?')[0];
+    setCurrentUrl(window.location.pathname + window.location.search + window.location.hash);
+    const targetPath = path.split('?')[0].split('#')[0];
     if (targetPath !== '/discover' && targetPath !== '/') {
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
       document.documentElement.scrollTop = 0;
@@ -40,44 +44,45 @@ function MainRouter() {
 
   useEffect(() => {
     const handlePopState = () => {
-      setCurrentPath(window.location.pathname);
+      setCurrentUrl(window.location.pathname + window.location.search + window.location.hash);
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  const currentPath = window.location.pathname;
   const hash = window.location.hash;
   const searchParams = new URLSearchParams(window.location.search);
 
   // ── 1. Public: Digital Menu  /m/:slug ─────────────────────────────────
   const menuMatch = currentPath.match(/^\/m\/([^/?#]+)/) || hash.match(/^#\/m\/([^/?#]+)/);
-  const menuQuery = searchParams.get('m') || searchParams.get('menu');
-  if (menuMatch || menuQuery) {
-    return <PublicMenuPage slug={menuMatch ? menuMatch[1] : menuQuery!} />;
+  if (menuMatch) {
+    return <PublicMenuPage slug={menuMatch[1]} />;
   }
 
-  // ── 2. Public: Google Review  /r/:slug ────────────────────────────────
-  const reviewMatch = currentPath.match(/^\/r\/([^/?#]+)/) || hash.match(/^#\/r\/([^/?#]+)/);
-  const reviewQuery = searchParams.get('r') || searchParams.get('review');
-  if (reviewMatch || reviewQuery) {
-    return <ReviewExperiencePage slug={reviewMatch ? reviewMatch[1] : reviewQuery!} />;
+  // ── 2. Public: Google Review  /r/:slug or /review/:slug ───────────────
+  const reviewMatch =
+    currentPath.match(/^\/r\/([^/?#]+)/) ||
+    currentPath.match(/^\/review\/([^/?#]+)/) ||
+    hash.match(/^#\/r\/([^/?#]+)/);
+  if (reviewMatch) {
+    return <ReviewExperiencePage slug={reviewMatch[1]} />;
   }
 
-  // ── 3. Public: Combined QR  /q/:slug ──────────────────────────────────
-  const combinedMatch = currentPath.match(/^\/q\/([^/?#]+)/) || hash.match(/^#\/q\/([^/?#]+)/);
-  const combinedQuery = searchParams.get('qr');
-  if (combinedMatch || combinedQuery) {
-    return <CombinedLandingPage slug={combinedMatch ? combinedMatch[1] : combinedQuery!} />;
+  // ── 3. Public: Combined QR  /q/:slug or /c/:slug ──────────────────────
+  const combinedMatch =
+    currentPath.match(/^\/q\/([^/?#]+)/) ||
+    currentPath.match(/^\/c\/([^/?#]+)/) ||
+    hash.match(/^#\/q\/([^/?#]+)/);
+  if (combinedMatch) {
+    return <CombinedLandingPage slug={combinedMatch[1]} />;
   }
 
-  // ── 4. Public Discovery: /discover (Explicit route or search query) ───
-  const isExplicitDiscover =
-    currentPath === '/discover' ||
-    hash === '#/discover' ||
-    searchParams.has('discover') ||
-    searchParams.has('q');
+  // ── 4. Public Discovery: /discover or any search query (?q=...) ───────
+  const hasDiscoveryQuery = searchParams.has('q') || searchParams.has('discover');
+  const isExplicitDiscover = currentPath === '/discover' || hash.startsWith('#/discover');
 
-  if (isExplicitDiscover) {
+  if (isExplicitDiscover || hasDiscoveryQuery) {
     return (
       <DiscoverPage
         onNavigateLogin={() => navigateTo('/login')}

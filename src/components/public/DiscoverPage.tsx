@@ -88,7 +88,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
         }
 
         const newSearch = currentParams.toString();
-        const basePath = window.location.pathname === '/' ? '/discover' : window.location.pathname;
+        const basePath = window.location.pathname;
         const newUrl = `${basePath}${newSearch ? `?${newSearch}` : ''}${window.location.hash}`;
         window.history.replaceState(null, '', newUrl);
       }
