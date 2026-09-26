@@ -83,7 +83,7 @@ function MainRouter() {
     return (
       <DiscoverPage
         onNavigateLogin={() => navigateTo('/login')}
-        onNavigateMenu={(slug) => navigateTo(`/m/${slug}`)}
+        onNavigateMenu={(slug) => navigateTo(`/m/${slug}?from=discover`)}
         onNavigateDashboard={() => navigateTo('/')}
       />
     );
@@ -138,7 +138,7 @@ function MainRouter() {
     return (
       <DiscoverPage
         onNavigateLogin={() => navigateTo('/login')}
-        onNavigateMenu={(slug) => navigateTo(`/m/${slug}`)}
+        onNavigateMenu={(slug) => navigateTo(`/m/${slug}?from=discover`)}
         onNavigateDashboard={() => navigateTo('/')}
       />
     );

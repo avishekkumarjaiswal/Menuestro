@@ -51,6 +51,9 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({ slug }) => {
   const urlParams = new URLSearchParams(window.location.search);
   const tableParam = urlParams.get('table');
   const itemParam = urlParams.get('item');
+  const fromParam = urlParams.get('from');
+  const hasSavedDiscoveryQuery = typeof window !== 'undefined' && Boolean(sessionStorage.getItem('menuestro_discovery_search_query'));
+  const isFromDiscover = fromParam === 'discover' || hasSavedDiscoveryQuery;
 
   // Format price cleanly without silently rounding values
   const formatPrice = (price: number | string) => {
@@ -312,6 +315,25 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({ slug }) => {
               <div className="w-full h-full bg-gradient-to-br from-[#1E293B] to-[#0F172A] flex items-center justify-center">
                 <Leaf className="w-8 h-8 text-white/20" />
               </div>
+            )}
+
+            {/* Back to Discovery Search if user came from search */}
+            {isFromDiscover && (
+              <button
+                type="button"
+                onClick={() => {
+                  const savedQ = sessionStorage.getItem('menuestro_discovery_search_query');
+                  if (window.history.length > 1) {
+                    window.history.back();
+                  } else {
+                    window.location.href = savedQ ? `/discover?q=${encodeURIComponent(savedQ)}` : '/discover';
+                  }
+                }}
+                className="absolute top-3 left-3 bg-white/95 hover:bg-white active:scale-95 backdrop-blur-sm px-2.5 py-1 rounded-full text-xs font-semibold text-[#101828] shadow-sm border border-white/60 flex items-center gap-1.5 cursor-pointer transition-all z-10 select-none"
+              >
+                <ArrowLeft className="w-3.5 h-3.5 text-[#078A55]" />
+                <span>Search</span>
+              </button>
             )}
 
             {/* Table Badge if scanned from specific table */}

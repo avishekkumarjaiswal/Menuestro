@@ -41,19 +41,46 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
 }) => {
   const { user } = useAuth();
 
+  // Read initial query from URL search param or session storage
+  const getInitialQuery = (): string => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const q = urlParams.get('q') || urlParams.get('search') || urlParams.get('dish');
+      if (q && q.trim()) return q.trim();
+      const saved = sessionStorage.getItem('menuestro_discovery_search_query');
+      if (saved && saved.trim()) return saved.trim();
+    } catch {}
+    return '';
+  };
+
   const [restaurants, setRestaurants] = useState<RestaurantWithDishes[]>([]);
   const [loadingData, setLoadingData] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(getInitialQuery);
+  const [debouncedQuery, setDebouncedQuery] = useState(getInitialQuery);
   const [isSearching, setIsSearching] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Debounce input to keep UI buttery smooth without lagging
+  // Debounce input and sync URL params + sessionStorage
   useEffect(() => {
     setIsSearching(true);
     const timer = setTimeout(() => {
-      setDebouncedQuery(searchQuery);
+      const clean = searchQuery.trim();
+      setDebouncedQuery(clean);
       setIsSearching(false);
+
+      try {
+        const url = new URL(window.location.href);
+        if (clean) {
+          url.searchParams.set('q', clean);
+          sessionStorage.setItem('menuestro_discovery_search_query', clean);
+        } else {
+          url.searchParams.delete('q');
+          url.searchParams.delete('search');
+          url.searchParams.delete('dish');
+          sessionStorage.removeItem('menuestro_discovery_search_query');
+        }
+        window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+      } catch {}
     }, 200);
 
     return () => clearTimeout(timer);
@@ -130,12 +157,26 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
   const handleSelectExample = (term: string) => {
     setSearchQuery(term);
     setDebouncedQuery(term);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('q', term);
+      sessionStorage.setItem('menuestro_discovery_search_query', term);
+      window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+    } catch {}
     searchInputRef.current?.focus();
   };
 
   const handleClear = () => {
     setSearchQuery('');
     setDebouncedQuery('');
+    try {
+      sessionStorage.removeItem('menuestro_discovery_search_query');
+      const url = new URL(window.location.href);
+      url.searchParams.delete('q');
+      url.searchParams.delete('search');
+      url.searchParams.delete('dish');
+      window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+    } catch {}
     searchInputRef.current?.focus();
   };
 
@@ -143,7 +184,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
     if (onNavigateMenu) {
       onNavigateMenu(slug);
     } else {
-      window.location.href = `/m/${slug}`;
+      window.location.href = `/m/${slug}?from=discover`;
     }
   };
 
