@@ -29,25 +29,22 @@ function MainRouter() {
 
   const navigateTo = (path: string) => {
     window.history.pushState({}, '', path);
-    setCurrentPath(path);
+    setCurrentPath(window.location.pathname);
+    const targetPath = path.split('?')[0];
+    if (targetPath !== '/discover' && targetPath !== '/') {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    }
   };
 
   useEffect(() => {
     const handlePopState = () => {
       setCurrentPath(window.location.pathname);
-      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-      document.documentElement.scrollTop = 0;
-      document.body.scrollTop = 0;
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
-
-  useEffect(() => {
-    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-    document.documentElement.scrollTop = 0;
-    document.body.scrollTop = 0;
-  }, [currentPath]);
 
   const hash = window.location.hash;
   const searchParams = new URLSearchParams(window.location.search);
@@ -68,22 +65,23 @@ function MainRouter() {
 
   // ── 3. Public: Combined QR  /q/:slug ──────────────────────────────────
   const combinedMatch = currentPath.match(/^\/q\/([^/?#]+)/) || hash.match(/^#\/q\/([^/?#]+)/);
-  const combinedQuery = searchParams.get('q') || searchParams.get('qr');
+  const combinedQuery = searchParams.get('qr');
   if (combinedMatch || combinedQuery) {
     return <CombinedLandingPage slug={combinedMatch ? combinedMatch[1] : combinedQuery!} />;
   }
 
-  // ── 4. Public Discovery: /discover (Explicit route) ────────────────────
+  // ── 4. Public Discovery: /discover (Explicit route or search query) ───
   const isExplicitDiscover =
     currentPath === '/discover' ||
     hash === '#/discover' ||
-    searchParams.has('discover');
+    searchParams.has('discover') ||
+    searchParams.has('q');
 
   if (isExplicitDiscover) {
     return (
       <DiscoverPage
         onNavigateLogin={() => navigateTo('/login')}
-        onNavigateMenu={(slug) => navigateTo(`/m/${slug}?from=discover`)}
+        onNavigateMenu={(slug) => navigateTo(`/m/${slug}`)}
         onNavigateDashboard={() => navigateTo('/')}
       />
     );
@@ -138,7 +136,7 @@ function MainRouter() {
     return (
       <DiscoverPage
         onNavigateLogin={() => navigateTo('/login')}
-        onNavigateMenu={(slug) => navigateTo(`/m/${slug}?from=discover`)}
+        onNavigateMenu={(slug) => navigateTo(`/m/${slug}`)}
         onNavigateDashboard={() => navigateTo('/')}
       />
     );

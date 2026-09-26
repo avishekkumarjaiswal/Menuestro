@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   getDiscoveryRestaurantsWithMenus,
   searchPublicDishes,
 } from '../../services/firestoreService';
-import { RestaurantWithDishes, RestaurantSearchResult, DiscoveryMenuItem } from '../../types';
+import { RestaurantWithDishes, RestaurantSearchResult } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { TagBadge } from '../ui/TagBadge';
 import {
@@ -12,11 +12,8 @@ import {
   Leaf,
   Utensils,
   ArrowRight,
-  ArrowUpRight,
   Loader2,
   Store,
-  ChefHat,
-  Sparkles,
 } from 'lucide-react';
 
 interface DiscoverPageProps {
@@ -34,6 +31,9 @@ const EXAMPLE_SEARCHES = [
   'Himachali Food',
 ];
 
+const SCROLL_STORAGE_KEY = 'menuestro_discover_scroll_y';
+const QUERY_STORAGE_KEY = 'menuestro_discover_last_query';
+
 export const DiscoverPage: React.FC<DiscoverPageProps> = ({
   onNavigateLogin,
   onNavigateMenu,
@@ -41,52 +41,76 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
 }) => {
   const { user } = useAuth();
 
-  // Read initial query from URL search param or session storage
-  const getInitialQuery = (): string => {
+  // 1. URL Query Extraction helper
+  const getQueryFromUrl = useCallback((): string => {
     try {
-      const urlParams = new URLSearchParams(window.location.search);
-      const q = urlParams.get('q') || urlParams.get('search') || urlParams.get('dish');
-      if (q && q.trim()) return q.trim();
-      const saved = sessionStorage.getItem('menuestro_discovery_search_query');
-      if (saved && saved.trim()) return saved.trim();
+      const params = new URLSearchParams(window.location.search);
+      const urlQ = params.get('q');
+      if (urlQ !== null && urlQ !== undefined) {
+        return urlQ;
+      }
     } catch {}
     return '';
-  };
+  }, []);
 
   const [restaurants, setRestaurants] = useState<RestaurantWithDishes[]>([]);
   const [loadingData, setLoadingData] = useState(true);
-  const [searchQuery, setSearchQuery] = useState(getInitialQuery);
-  const [debouncedQuery, setDebouncedQuery] = useState(getInitialQuery);
+  const [searchQuery, setSearchQuery] = useState<string>(() => getQueryFromUrl());
+  const [debouncedQuery, setDebouncedQuery] = useState<string>(() => getQueryFromUrl());
   const [isSearching, setIsSearching] = useState(false);
-  const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Debounce input and sync URL params + sessionStorage
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const hasRestoredScrollRef = useRef(false);
+
+  // 2. Debounce input to keep UI snappy and update debouncedQuery
   useEffect(() => {
     setIsSearching(true);
     const timer = setTimeout(() => {
-      const clean = searchQuery.trim();
-      setDebouncedQuery(clean);
+      setDebouncedQuery(searchQuery);
       setIsSearching(false);
-
-      try {
-        const url = new URL(window.location.href);
-        if (clean) {
-          url.searchParams.set('q', clean);
-          sessionStorage.setItem('menuestro_discovery_search_query', clean);
-        } else {
-          url.searchParams.delete('q');
-          url.searchParams.delete('search');
-          url.searchParams.delete('dish');
-          sessionStorage.removeItem('menuestro_discovery_search_query');
-        }
-        window.history.replaceState({}, '', url.pathname + url.search + url.hash);
-      } catch {}
-    }, 200);
+    }, 180);
 
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Load active discovery restaurants
+  // 3. Keep URL search query parameter in sync (/discover?q=rice)
+  useEffect(() => {
+    try {
+      const currentParams = new URLSearchParams(window.location.search);
+      const currentUrlQ = currentParams.get('q') || '';
+      const trimmed = debouncedQuery.trim();
+
+      if (trimmed !== currentUrlQ) {
+        if (trimmed) {
+          currentParams.set('q', trimmed);
+        } else {
+          currentParams.delete('q');
+        }
+
+        const newSearch = currentParams.toString();
+        const basePath = window.location.pathname === '/' ? '/discover' : window.location.pathname;
+        const newUrl = `${basePath}${newSearch ? `?${newSearch}` : ''}${window.location.hash}`;
+        window.history.replaceState(null, '', newUrl);
+      }
+    } catch (err) {
+      console.warn('Could not update history state:', err);
+    }
+  }, [debouncedQuery]);
+
+  // 4. Handle browser BACK / FORWARD events (popstate)
+  useEffect(() => {
+    const handlePopState = () => {
+      const qFromUrl = getQueryFromUrl();
+      setSearchQuery(qFromUrl);
+      setDebouncedQuery(qFromUrl);
+      hasRestoredScrollRef.current = false; // Allow scroll restoration on popstate
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [getQueryFromUrl]);
+
+  // 5. Load active discovery restaurants (reused from cache if already loaded)
   useEffect(() => {
     let isMounted = true;
 
@@ -113,13 +137,36 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
     };
   }, []);
 
-  // Compute search results deterministically
+  // 6. Compute search results deterministically
   const searchResults: RestaurantSearchResult[] = useMemo(() => {
     if (!debouncedQuery.trim()) {
       return [];
     }
     return searchPublicDishes(debouncedQuery, restaurants);
   }, [debouncedQuery, restaurants]);
+
+  // 7. Scroll restoration: Restore scroll position when returning via BACK button
+  useEffect(() => {
+    if (!loadingData && !hasRestoredScrollRef.current) {
+      try {
+        const savedScroll = sessionStorage.getItem(SCROLL_STORAGE_KEY);
+        if (savedScroll !== null) {
+          const scrollY = parseInt(savedScroll, 10);
+          if (!isNaN(scrollY) && scrollY > 0) {
+            hasRestoredScrollRef.current = true;
+            // Double-frame delay to ensure content layout is complete
+            requestAnimationFrame(() => {
+              setTimeout(() => {
+                window.scrollTo({ top: scrollY, behavior: 'instant' });
+                document.documentElement.scrollTop = scrollY;
+                document.body.scrollTop = scrollY;
+              }, 40);
+            });
+          }
+        }
+      } catch {}
+    }
+  }, [loadingData, searchResults.length, restaurants.length]);
 
   // Total matching dishes across all restaurants
   const totalMatchingDishes = useMemo(() => {
@@ -155,36 +202,36 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
   };
 
   const handleSelectExample = (term: string) => {
+    try {
+      sessionStorage.removeItem(SCROLL_STORAGE_KEY);
+    } catch {}
     setSearchQuery(term);
     setDebouncedQuery(term);
-    try {
-      const url = new URL(window.location.href);
-      url.searchParams.set('q', term);
-      sessionStorage.setItem('menuestro_discovery_search_query', term);
-      window.history.replaceState({}, '', url.pathname + url.search + url.hash);
-    } catch {}
     searchInputRef.current?.focus();
   };
 
   const handleClear = () => {
+    try {
+      sessionStorage.removeItem(SCROLL_STORAGE_KEY);
+      sessionStorage.removeItem(QUERY_STORAGE_KEY);
+    } catch {}
     setSearchQuery('');
     setDebouncedQuery('');
-    try {
-      sessionStorage.removeItem('menuestro_discovery_search_query');
-      const url = new URL(window.location.href);
-      url.searchParams.delete('q');
-      url.searchParams.delete('search');
-      url.searchParams.delete('dish');
-      window.history.replaceState({}, '', url.pathname + url.search + url.hash);
-    } catch {}
     searchInputRef.current?.focus();
   };
 
+  // 8. Navigate to Restaurant Menu: Preserve scroll and search state
   const handleViewMenu = (slug: string) => {
+    try {
+      sessionStorage.setItem(SCROLL_STORAGE_KEY, String(window.scrollY || document.documentElement.scrollTop || 0));
+      sessionStorage.setItem(QUERY_STORAGE_KEY, debouncedQuery);
+    } catch {}
+
     if (onNavigateMenu) {
       onNavigateMenu(slug);
     } else {
-      window.location.href = `/m/${slug}?from=discover`;
+      window.history.pushState({}, '', `/m/${slug}`);
+      window.dispatchEvent(new PopStateEvent('popstate'));
     }
   };
 
@@ -198,8 +245,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
           {/* Brand Logo */}
           <div
             onClick={() => {
-              setSearchQuery('');
-              setDebouncedQuery('');
+              handleClear();
             }}
             className="flex items-center gap-2.5 cursor-pointer select-none group"
           >
