@@ -320,3 +320,47 @@ export interface PlatformOverviewMetrics {
   totalReviewAssistantSessions: number;
   totalReviewDraftsGenerated: number;
 }
+
+// ==========================================
+// PUBLIC FOOD DISCOVERY & SEARCH DATA MODELS
+// ==========================================
+
+export interface PublicRestaurantDiscoveryItem {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  tagline?: string;
+  logoUrl?: string;
+  coverImageUrl?: string;
+  currencySymbol?: string;
+  currency?: string;
+  address?: string;
+  googleMapsUrl?: string;
+}
+
+export interface DiscoveryMenuItem {
+  id: string;
+  businessId: string;
+  categoryId: string;
+  categoryName: string;
+  name: string;
+  description?: string;
+  price: number;
+  imageUrl?: string;
+  tags?: MenuItemTag[];
+  isAvailable: boolean;
+}
+
+export interface RestaurantWithDishes {
+  restaurant: PublicRestaurantDiscoveryItem;
+  categories: { id: string; name: string }[];
+  items: DiscoveryMenuItem[];
+}
+
+export interface RestaurantSearchResult {
+  restaurant: PublicRestaurantDiscoveryItem;
+  matchingItems: DiscoveryMenuItem[];
+  totalAvailableItems: number;
+}
+

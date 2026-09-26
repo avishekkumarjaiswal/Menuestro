@@ -4,7 +4,11 @@ import { useToast } from '../common/Toast';
 import { auth } from '../../lib/firebase';
 import { QrCode, Star, BarChart3, Leaf, ArrowRight, Loader2, Sparkles } from 'lucide-react';
 
-export const AuthPage: React.FC = () => {
+export interface AuthPageProps {
+  onNavigateDiscover?: () => void;
+}
+
+export const AuthPage: React.FC<AuthPageProps> = ({ onNavigateDiscover }) => {
   const { signIn, signUp, signInWithGoogle, sendPasswordReset, refreshBusiness } = useAuth();
   const { showToast } = useToast();
 
@@ -290,30 +294,43 @@ export const AuthPage: React.FC = () => {
             </button>
 
             {/* Bottom switcher */}
-            <div className="mt-6 text-center text-xs text-slate-500">
-              {mode === 'login' ? (
-                <>
-                  Don&apos;t have an account?{' '}
-                  <button
-                    type="button"
-                    onClick={() => setMode('signup')}
-                    className="font-semibold text-emerald-600 hover:text-emerald-700 cursor-pointer"
-                  >
-                    Sign up
-                  </button>
-                </>
-              ) : (
-                <>
-                  Already have an account?{' '}
-                  <button
-                    type="button"
-                    onClick={() => setMode('login')}
-                    className="font-semibold text-emerald-600 hover:text-emerald-700 cursor-pointer"
-                  >
-                    Sign in
-                  </button>
-                </>
-              )}
+            <div className="mt-6 text-center text-xs text-slate-500 space-y-3">
+              <div>
+                {mode === 'login' ? (
+                  <>
+                    Don&apos;t have an account?{' '}
+                    <button
+                      type="button"
+                      onClick={() => setMode('signup')}
+                      className="font-semibold text-emerald-600 hover:text-emerald-700 cursor-pointer"
+                    >
+                      Sign up
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    Already have an account?{' '}
+                    <button
+                      type="button"
+                      onClick={() => setMode('login')}
+                      className="font-semibold text-emerald-600 hover:text-emerald-700 cursor-pointer"
+                    >
+                      Sign in
+                    </button>
+                  </>
+                )}
+              </div>
+
+              <div className="pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={onNavigateDiscover || (() => { window.location.href = '/discover'; })}
+                  className="text-xs font-medium text-slate-500 hover:text-emerald-600 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                >
+                  <span>Looking for food?</span>
+                  <span className="font-semibold underline">Search dishes on Menuestro →</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

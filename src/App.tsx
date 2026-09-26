@@ -9,6 +9,7 @@ import { AdminDashboard } from './components/admin/AdminDashboard';
 import { PublicMenuPage } from './components/public/PublicMenuPage';
 import { ReviewExperiencePage } from './components/public/ReviewExperiencePage';
 import { CombinedLandingPage } from './components/public/CombinedLandingPage';
+import { DiscoverPage } from './components/public/DiscoverPage';
 import { PWAInstallPrompt } from './components/common/PWAInstallPrompt';
 
 // ─── Loading Screen ────────────────────────────────────────────────────────
@@ -25,6 +26,11 @@ function LoadingScreen() {
 function MainRouter() {
   const { user, isSuperAdmin, isUnassigned, business, application, loading } = useAuth();
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
+
+  const navigateTo = (path: string) => {
+    window.history.pushState({}, '', path);
+    setCurrentPath(path);
+  };
 
   useEffect(() => {
     const handlePopState = () => {
@@ -67,10 +73,26 @@ function MainRouter() {
     return <CombinedLandingPage slug={combinedMatch ? combinedMatch[1] : combinedQuery!} />;
   }
 
-  // ── 4. Loading ─────────────────────────────────────────────────────────
+  // ── 4. Public Discovery: /discover (Explicit route) ────────────────────
+  const isExplicitDiscover =
+    currentPath === '/discover' ||
+    hash === '#/discover' ||
+    searchParams.has('discover');
+
+  if (isExplicitDiscover) {
+    return (
+      <DiscoverPage
+        onNavigateLogin={() => navigateTo('/login')}
+        onNavigateMenu={(slug) => navigateTo(`/m/${slug}`)}
+        onNavigateDashboard={() => navigateTo('/')}
+      />
+    );
+  }
+
+  // ── 5. Loading ─────────────────────────────────────────────────────────
   if (loading) return <LoadingScreen />;
 
-  // ── 5. Admin routes (Unauthenticated) ──────────────────────────────────
+  // ── 6. Admin routes (Unauthenticated) ──────────────────────────────────
   const requestedAdminPath =
     currentPath.startsWith('/admin') ||
     hash.startsWith('#/admin') ||
@@ -82,15 +104,45 @@ function MainRouter() {
       <AdminDashboard
         initialTab="dashboard"
         onNavigateHome={() => {
-          window.history.pushState({}, '', '/');
-          setCurrentPath('/');
+          navigateTo('/');
         }}
       />
     );
   }
 
-  // ── 6. Not authenticated ───────────────────────────────────────────────
-  if (!user) return <AuthPage />;
+  // ── 7. Not authenticated ───────────────────────────────────────────────
+  if (!user) {
+    const isExplicitAuth =
+      currentPath === '/login' ||
+      currentPath === '/signin' ||
+      currentPath === '/auth' ||
+      hash === '#/login' ||
+      hash === '#/signin' ||
+      hash === '#/auth' ||
+      searchParams.has('login') ||
+      searchParams.has('auth');
+
+    const isExplicitOnboarding =
+      currentPath === '/onboarding' ||
+      hash === '#/onboarding';
+
+    if (isExplicitOnboarding) {
+      return <OnboardingWizard />;
+    }
+
+    if (isExplicitAuth) {
+      return <AuthPage onNavigateDiscover={() => navigateTo('/discover')} />;
+    }
+
+    // Default unauthenticated visitor on homepage "/" sees Food Discovery
+    return (
+      <DiscoverPage
+        onNavigateLogin={() => navigateTo('/login')}
+        onNavigateMenu={(slug) => navigateTo(`/m/${slug}`)}
+        onNavigateDashboard={() => navigateTo('/')}
+      />
+    );
+  }
 
   // ── 7. Super Admin access ──────────────────────────────────────────────
   // Super admins go to /admin and ONLY /admin. They never see a restaurant dashboard.

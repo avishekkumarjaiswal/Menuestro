@@ -40,6 +40,10 @@ import {
   DashboardTimeFilter,
   RestaurantApplication,
   RestaurantApplicationStatus,
+  PublicRestaurantDiscoveryItem,
+  DiscoveryMenuItem,
+  RestaurantWithDishes,
+  RestaurantSearchResult,
 } from '../types';
 
 // ==========================================
@@ -3065,3 +3069,243 @@ export function subscribePrivateFeedback(
     }
   );
 }
+
+// ==========================================
+// 17. PUBLIC FOOD DISCOVERY & SEARCH ENGINE
+// ==========================================
+
+let discoveryDataCache: {
+  data: RestaurantWithDishes[];
+  timestamp: number;
+} | null = null;
+const DISCOVERY_CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes cache
+
+export function invalidateDiscoveryCache(): void {
+  discoveryDataCache = null;
+}
+
+/**
+ * Loads all active restaurants and their available menu items for public discovery.
+ * - Active restaurants only (filters out suspended, archived, or draft restaurants)
+ * - Available menu items only (filters out isAvailable === false)
+ * - Sanitizes business data (never exposes manager emails, internal IDs, billing)
+ * - In-memory cached to avoid N+1 queries during user search sessions
+ */
+export async function getDiscoveryRestaurantsWithMenus(
+  forceRefresh = false
+): Promise<RestaurantWithDishes[]> {
+  if (
+    !forceRefresh &&
+    discoveryDataCache &&
+    Date.now() - discoveryDataCache.timestamp < DISCOVERY_CACHE_TTL_MS
+  ) {
+    return discoveryDataCache.data;
+  }
+
+  try {
+    // 1. Fetch all restaurants
+    const businesses = await getAllBusinesses();
+
+    // 2. Strict filter: Active restaurants only
+    const activeBusinesses = businesses.filter((b) => {
+      const isStatusActive = !b.status || b.status === 'active';
+      const isNotSuspendedOrArchived = b.status !== 'suspended' && b.status !== 'archived';
+      return isStatusActive && isNotSuspendedOrArchived && Boolean(b.slug);
+    });
+
+    if (activeBusinesses.length === 0) {
+      discoveryDataCache = { data: [], timestamp: Date.now() };
+      return [];
+    }
+
+    // 3. Parallel fetch categories & menu items for active businesses
+    const restaurantPromises = activeBusinesses.map(async (biz): Promise<RestaurantWithDishes | null> => {
+      try {
+        const categories = (await getCategories(biz.id)) || [];
+        const activeCategories = categories.filter((c) => c.isActive !== false);
+        
+        const categoryMap = new Map<string, string>();
+        activeCategories.forEach((c) => categoryMap.set(c.id, c.name));
+
+        const rawItems = activeCategories.length > 0 ? await getAllMenuItems(biz.id, activeCategories) : [];
+        
+        // Filter only available items
+        const availableItems: DiscoveryMenuItem[] = rawItems
+          .filter((item) => item.isAvailable !== false)
+          .map((item) => ({
+            id: item.id,
+            businessId: biz.id,
+            categoryId: item.categoryId,
+            categoryName: categoryMap.get(item.categoryId) || 'General',
+            name: item.name,
+            description: item.description || '',
+            price: typeof item.price === 'number' ? item.price : parseFloat(String(item.price)) || 0,
+            imageUrl: item.imageUrl || '',
+            tags: item.tags || [],
+            isAvailable: true,
+          }));
+
+        const sanitizedRestaurant: PublicRestaurantDiscoveryItem = {
+          id: biz.id,
+          name: biz.name,
+          slug: biz.slug,
+          description: biz.description || '',
+          tagline: biz.tagline || '',
+          logoUrl: biz.logoUrl || '',
+          coverImageUrl: biz.coverImageUrl || '',
+          currencySymbol: biz.currencySymbol || biz.currency || '₹',
+          currency: biz.currency || '₹',
+          address: biz.address || '',
+          googleMapsUrl: biz.googleMapsUrl || '',
+        };
+
+        return {
+          restaurant: sanitizedRestaurant,
+          categories: activeCategories.map((c) => ({ id: c.id, name: c.name })),
+          items: availableItems,
+        };
+      } catch (err) {
+        console.warn(`Error loading discovery menu for ${biz.name} (${biz.id}):`, err);
+        return null;
+      }
+    });
+
+    const results = await Promise.all(restaurantPromises);
+    const validRestaurants = results.filter((r): r is RestaurantWithDishes => r !== null && r.items.length > 0);
+
+    discoveryDataCache = {
+      data: validRestaurants,
+      timestamp: Date.now(),
+    };
+
+    return validRestaurants;
+  } catch (err) {
+    console.error('getDiscoveryRestaurantsWithMenus error:', err);
+    return discoveryDataCache?.data || [];
+  }
+}
+
+/**
+ * Deterministic client-side multi-field partial-match search.
+ * Searches across:
+ * - Item name (partial match, tokenized)
+ * - Item description
+ * - Category name
+ * - Item dietary/special tags (Veg, Non-Veg, Bestseller, etc.)
+ * - Restaurant name/cuisine metadata
+ *
+ * Groups all matching dishes per restaurant with deduplication and relevance sorting.
+ */
+export function searchPublicDishes(
+  rawQuery: string,
+  restaurants: RestaurantWithDishes[]
+): RestaurantSearchResult[] {
+  const query = rawQuery.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!query || query.length < 1 || !restaurants || restaurants.length === 0) {
+    return [];
+  }
+
+  const terms = query.split(' ').filter((t) => t.length > 0);
+
+  const matchedResults: RestaurantSearchResult[] = [];
+
+  for (const entry of restaurants) {
+    const { restaurant, items, categories } = entry;
+    const restName = restaurant.name.toLowerCase();
+    const restTagline = (restaurant.tagline || '').toLowerCase();
+    const restDesc = (restaurant.description || '').toLowerCase();
+
+    // Check if the restaurant itself matches the query (e.g., cuisine or name like "Tibetan" or "Himachali")
+    const restaurantMatchesTerms = terms.some(
+      (term) => restName.includes(term) || restTagline.includes(term) || restDesc.includes(term)
+    );
+
+    const matchingItems: { item: DiscoveryMenuItem; score: number }[] = [];
+
+    for (const item of items) {
+      const itemName = item.name.toLowerCase();
+      const itemDesc = (item.description || '').toLowerCase();
+      const catName = item.categoryName.toLowerCase();
+      const itemTags = (item.tags || []).map((t) => t.toLowerCase());
+
+      let score = 0;
+
+      // 1. Exact or prefix match on item name (highest relevance)
+      if (itemName === query) {
+        score += 100;
+      } else if (itemName.startsWith(query)) {
+        score += 60;
+      } else if (itemName.includes(query)) {
+        score += 40;
+      }
+
+      // 2. Token match on item name
+      const allTokensInName = terms.every((term) => itemName.includes(term));
+      if (allTokensInName && score < 40) {
+        score += 30;
+      } else {
+        const tokenMatchesInName = terms.filter((term) => itemName.includes(term)).length;
+        score += tokenMatchesInName * 10;
+      }
+
+      // 3. Category match
+      if (catName.includes(query)) {
+        score += 25;
+      } else if (terms.some((t) => catName.includes(t))) {
+        score += 15;
+      }
+
+      // 4. Tags match (e.g. "veg", "spicy", "bestseller")
+      if (itemTags.some((tag) => tag.includes(query) || query.includes(tag))) {
+        score += 20;
+      } else if (itemTags.some((tag) => terms.some((t) => tag.includes(t)))) {
+        score += 10;
+      }
+
+      // 5. Description match
+      if (itemDesc.includes(query)) {
+        score += 15;
+      } else if (terms.some((t) => itemDesc.includes(t))) {
+        score += 5;
+      }
+
+      // 6. Restaurant cuisine/meta match fallback for items
+      if (restaurantMatchesTerms && score === 0) {
+        score += 5;
+      }
+
+      if (score > 0) {
+        matchingItems.push({ item, score });
+      }
+    }
+
+    if (matchingItems.length > 0) {
+      // Sort matching items within this restaurant by relevance score descending
+      matchingItems.sort((a, b) => b.score - a.score);
+
+      matchedResults.push({
+        restaurant,
+        matchingItems: matchingItems.map((m) => m.item),
+        totalAvailableItems: items.length,
+      });
+    }
+  }
+
+  // Sort restaurants by overall relevance:
+  // 1. Max single item score
+  // 2. Total number of matching items
+  // 3. Restaurant name alphabetical
+  matchedResults.sort((a, b) => {
+    const aTopMatch = a.matchingItems[0]?.name.toLowerCase().includes(query) ? 1 : 0;
+    const bTopMatch = b.matchingItems[0]?.name.toLowerCase().includes(query) ? 1 : 0;
+    if (aTopMatch !== bTopMatch) return bTopMatch - aTopMatch;
+
+    if (b.matchingItems.length !== a.matchingItems.length) {
+      return b.matchingItems.length - a.matchingItems.length;
+    }
+    return a.restaurant.name.localeCompare(b.restaurant.name);
+  });
+
+  return matchedResults;
+}
+
